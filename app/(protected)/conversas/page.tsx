@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import {
   Search, Check, CheckCheck, Mic, X, Send as SendIcon,
   Smile, Image, FileText, Sticker, Plus,
-  Trash2, Pause, Play, CircleStop, ArrowRightLeft, ChevronDown, CircleX,
+  Trash2, Pause, Play, ArrowRightLeft, ChevronDown, CircleX,
   Phone, Filter, Clock, User, MessageCircle,
 } from "lucide-react";
 import { getAudioStore } from "@/lib/audioStore";
@@ -26,6 +26,7 @@ import {
   listUsers as apiListUsers,
   listTags as apiListTags,
   sendTyping as apiSendTyping,
+  sendMedia as apiSendMedia,
   getMediaUrl,
   type ConversationItem,
   type MessageItem,
@@ -80,6 +81,12 @@ export default function ConversasPage() {
   // Typing indicator debounce
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTypingSent = useRef<number>(0);
+
+  // Media upload
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioStreamRef = useRef<MediaStream | null>(null);
 
   // Auto-scroll to bottom
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -261,28 +268,168 @@ export default function ConversasPage() {
     return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
   };
 
-  const startRecording = () => {
-    setIsRecording(true);
-    setIsPaused(false);
-    setRecordTime(0);
-    recordInterval.current = setInterval(() => {
-      setRecordTime((t) => t + 1);
-    }, 1000);
+  // ── Media send helper ──────────────────────────────
+  const sendMediaMessage = async (base64: string, mimetype: string, messageType: "image" | "audio" | "document", caption?: string) => {
+    if (!selected || isSending) return;
+    setIsSending(true);
+
+    // Optimistic message
+    const tempId = `temp-${Date.now()}`;
+    const optimisticMsg: MessageItem = {
+      id: tempId,
+      conversation_id: selected,
+      sender_id: null,
+      text: caption || `[${messageType}]`,
+      sent: true,
+      read: false,
+      delivered: false,
+      is_system: false,
+      message_type: messageType,
+      has_media: true,
+      media_mimetype: mimetype,
+      created_at: new Date().toISOString(),
+    };
+    setChatMessages((prev) => [...prev, optimisticMsg]);
+
+    try {
+      const msg = await apiSendMedia(selected, {
+        media_base64: base64,
+        media_mimetype: mimetype,
+        caption: caption || "",
+        message_type: messageType,
+      });
+      setChatMessages((prev) =>
+        prev.map((m) => (m.id === tempId ? { ...msg } : m))
+      );
+      fetchConversations();
+    } catch (err: unknown) {
+      setChatMessages((prev) => prev.filter((m) => m.id !== tempId));
+      toast.error(err instanceof Error ? err.message : "Erro ao enviar mídia");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  // ── Image upload ──────────────────────────────
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Selecione um arquivo de imagem válido.");
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error("Imagem muito grande (máximo 15MB).");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      // result = "data:<mime>;base64,<data>"
+      const base64 = result.split(",")[1];
+      sendMediaMessage(base64, file.type, "image");
+    };
+    reader.readAsDataURL(file);
+    // Reset input so same file can be re-selected
+    e.target.value = "";
+  };
+
+  // ── Document upload ──────────────────────────────
+  const handleDocumentSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 30 * 1024 * 1024) {
+      toast.error("Arquivo muito grande (máximo 30MB).");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const base64 = result.split(",")[1];
+      sendMediaMessage(base64, file.type, "document", file.name);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  // ── Audio recording (real MediaRecorder) ──────────
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioStreamRef.current = stream;
+      audioChunksRef.current = [];
+
+      const recorder = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.start(250); // collect data every 250ms
+      setIsRecording(true);
+      setIsPaused(false);
+      setRecordTime(0);
+      recordInterval.current = setInterval(() => {
+        setRecordTime((t) => t + 1);
+      }, 1000);
+    } catch {
+      toast.error("Não foi possível acessar o microfone.");
+    }
   };
 
   const pauseRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      mediaRecorderRef.current.pause();
+    }
     setIsPaused(true);
     if (recordInterval.current) clearInterval(recordInterval.current);
   };
 
   const resumeRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "paused") {
+      mediaRecorderRef.current.resume();
+    }
     setIsPaused(false);
     recordInterval.current = setInterval(() => {
       setRecordTime((t) => t + 1);
     }, 1000);
   };
 
-  const stopRecording = () => {
+  const cancelRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.onstop = null; // prevent send
+      mediaRecorderRef.current.stop();
+    }
+    audioStreamRef.current?.getTracks().forEach((t) => t.stop());
+    audioStreamRef.current = null;
+    audioChunksRef.current = [];
+    setIsRecording(false);
+    setIsPaused(false);
+    setRecordTime(0);
+    if (recordInterval.current) clearInterval(recordInterval.current);
+  };
+
+  const sendRecording = () => {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state === "inactive") return;
+
+    recorder.onstop = () => {
+      const blob = new Blob(audioChunksRef.current, { type: "audio/webm;codecs=opus" });
+      audioStreamRef.current?.getTracks().forEach((t) => t.stop());
+      audioStreamRef.current = null;
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        const base64 = result.split(",")[1];
+        sendMediaMessage(base64, "audio/ogg; codecs=opus", "audio");
+      };
+      reader.readAsDataURL(blob);
+      audioChunksRef.current = [];
+    };
+    recorder.stop();
+
     setIsRecording(false);
     setIsPaused(false);
     setRecordTime(0);
@@ -782,8 +929,8 @@ export default function ConversasPage() {
               <div className="absolute bottom-full left-5 mb-2 bg-card border border-border rounded-xl shadow-lg z-10 w-56">
                 <div className="py-2">
                   {[
-                    { icon: Image, label: "Imagem", color: "text-blue-500" },
-                    { icon: FileText, label: "Documento", color: "text-orange-500" },
+                    { icon: Image, label: "Imagem", color: "text-blue-500", action: () => { setShowAttach(false); fileInputRef.current?.click(); } },
+                    { icon: FileText, label: "Documento", color: "text-orange-500", action: () => { setShowAttach(false); document.getElementById("doc-input")?.click(); } },
                     { icon: Mic, label: "Áudios Programados", color: "text-primary", action: () => { setShowAttach(false); setShowAudioList(true); } },
                     { icon: Sticker, label: "Figurinha", color: "text-pink-500" },
                   ].map((item) => (
@@ -799,6 +946,10 @@ export default function ConversasPage() {
                 </div>
               </div>
             )}
+
+            {/* Hidden file inputs */}
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
+            <input id="doc-input" type="file" accept="*/*" className="hidden" onChange={handleDocumentSelect} />
 
             {/* Emoji picker popup */}
             {showEmoji && (
@@ -825,8 +976,8 @@ export default function ConversasPage() {
 
             {isRecording ? (
               <div className="flex gap-2 items-center">
-                <span className="text-xs text-muted-foreground mr-1 cursor-pointer hover:text-foreground transition-colors" onClick={stopRecording}>Cancelar</span>
-                <button onClick={stopRecording} className="w-10 h-10 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-destructive hover:border-destructive transition-colors flex-shrink-0" title="Descartar">
+                <span className="text-xs text-muted-foreground mr-1 cursor-pointer hover:text-foreground transition-colors" onClick={cancelRecording}>Cancelar</span>
+                <button onClick={cancelRecording} className="w-10 h-10 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-destructive hover:border-destructive transition-colors flex-shrink-0" title="Descartar">
                   <Trash2 className="w-4 h-4" />
                 </button>
                 <div className="flex items-center gap-2 px-3">
@@ -841,10 +992,7 @@ export default function ConversasPage() {
                 <button onClick={isPaused ? resumeRecording : pauseRecording} className="w-10 h-10 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground transition-colors flex-shrink-0" title={isPaused ? "Continuar" : "Pausar"}>
                   {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
                 </button>
-                <button onClick={stopRecording} className="w-10 h-10 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground transition-colors flex-shrink-0" title="Parar">
-                  <CircleStop className="w-4 h-4" />
-                </button>
-                <button onClick={stopRecording} className="w-10 h-10 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center justify-center flex-shrink-0" title="Enviar áudio">
+                <button onClick={sendRecording} className="w-10 h-10 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center justify-center flex-shrink-0" title="Enviar áudio">
                   <SendIcon className="w-5 h-5" />
                 </button>
               </div>

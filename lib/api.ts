@@ -284,6 +284,16 @@ export function sendMessage(conversationId: string, data: { text: string; messag
   return api<MessageItem>(`/conversations/${conversationId}/messages`, { method: "POST", body: JSON.stringify(data) });
 }
 
+export function sendMedia(
+  conversationId: string,
+  data: { media_base64: string; media_mimetype: string; caption?: string; message_type?: "image" | "audio" | "document" },
+): Promise<MessageItem> {
+  return api<MessageItem>(`/conversations/${conversationId}/messages/media`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
 export function markMessagesRead(conversationId: string): Promise<{ updated: number }> {
   return api<{ updated: number }>(`/conversations/${conversationId}/messages/read`, { method: "PUT" });
 }
