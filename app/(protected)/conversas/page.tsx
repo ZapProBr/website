@@ -14,6 +14,7 @@ import {
 import { getAudioStore } from "@/lib/audioStore";
 import { ClientDetailPanel } from "@/components/conversas/ClientDetailPanel";
 import { AudioPlayer } from "@/components/conversas/AudioPlayer";
+import { RecordingVisualizer } from "@/components/conversas/RecordingVisualizer";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
@@ -1001,11 +1002,7 @@ export default function ConversasPage() {
                   <div className={cn("w-2.5 h-2.5 rounded-full bg-destructive", !isPaused && "animate-pulse")} />
                   <span className="text-sm font-mono font-semibold text-foreground min-w-[36px]">{formatRecordTime(recordTime)}</span>
                 </div>
-                <div className="flex-1 flex items-center justify-center gap-[3px] h-8 overflow-hidden">
-                  {Array.from({ length: 30 }).map((_, i) => (
-                    <div key={i} className={cn("w-[3px] rounded-full bg-muted-foreground/40 transition-all", !isPaused && "animate-pulse")} style={{ height: `${Math.max(4, Math.random() * 24 + 4)}px`, animationDelay: `${i * 50}ms` }} />
-                  ))}
-                </div>
+                <RecordingVisualizer stream={audioStreamRef.current} isPaused={isPaused} />
                 <button onClick={isPaused ? resumeRecording : pauseRecording} className="w-10 h-10 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground transition-colors flex-shrink-0" title={isPaused ? "Continuar" : "Pausar"}>
                   {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
                 </button>
