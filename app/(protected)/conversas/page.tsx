@@ -631,7 +631,18 @@ export default function ConversasPage() {
                     <div className="flex items-center gap-1.5">
                       <span className="text-sm font-semibold text-foreground truncate">{conv.contact_name}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground truncate mt-0.5">{conv.last_message || "Sem mensagens"}</p>
+                    <p className="text-xs text-muted-foreground truncate mt-0.5 flex items-center gap-1">
+                      {(() => {
+                        const msg = conv.last_message || "";
+                        const lower = msg.toLowerCase().trim();
+                        if (lower === "[audio]" || lower === "[áudio]") return <><Mic className="w-3 h-3 flex-shrink-0" /> Áudio</>;
+                        if (lower === "[imagem]" || lower === "[image]") return <><Image className="w-3 h-3 flex-shrink-0" /> Imagem</>;
+                        if (lower === "[documento]" || lower === "[document]") return <><FileText className="w-3 h-3 flex-shrink-0" /> Documento</>;
+                        if (lower === "[sticker]" || lower === "[figurinha]") return <><Sticker className="w-3 h-3 flex-shrink-0" /> Figurinha</>;
+                        if (lower === "[vídeo]" || lower === "[video]") return <><Play className="w-3 h-3 flex-shrink-0" /> Vídeo</>;
+                        return msg || "Sem mensagens";
+                      })()}
+                    </p>
                   </div>
                   <div className="flex flex-col items-end flex-shrink-0 pl-3 ml-2 gap-1 min-w-[100px]">
                     <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
