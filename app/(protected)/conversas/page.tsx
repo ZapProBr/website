@@ -78,7 +78,9 @@ export default function ConversasPage() {
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const prevMsgCount = useRef<number>(0);
-  const shouldSnapToBottom = useRef<boolean>(true);
+  const isUserNearBottom = useRef<boolean>(true);
+  const isFirstLoad = useRef<boolean>(true);
+  const programmaticScroll = useRef<boolean>(false);
 
   // Fetch reference data
   useEffect(() => {
@@ -137,9 +139,10 @@ export default function ConversasPage() {
     return () => clearInterval(interval);
   }, [selected, fetchMessages]);
 
-  // Reset snap flag on conversation switch → always scroll to bottom
+  // Reset on conversation switch → always scroll to bottom on first load
   useEffect(() => {
-    shouldSnapToBottom.current = true;
+    isFirstLoad.current = true;
+    isUserNearBottom.current = true;
     prevMsgCount.current = 0;
   }, [selected]);
 
@@ -149,23 +152,24 @@ export default function ConversasPage() {
     const container = messagesContainerRef.current;
     if (!container) return;
 
-    const isNewConversation = prevMsgCount.current === 0;
-    const hasNewMessages = chatMessages.length > prevMsgCount.current;
-    prevMsgCount.current = chatMessages.length;
+    const count = chatMessages.length;
+    const hasNewMessages = count > prevMsgCount.current;
+    prevMsgCount.current = count;
 
-    if (isNewConversation || shouldSnapToBottom.current) {
-      // Instant scroll on first load / conversation switch
+    if (isFirstLoad.current) {
+      // First load or conversation switch: snap instantly
+      isFirstLoad.current = false;
+      programmaticScroll.current = true;
       container.scrollTop = container.scrollHeight;
       return;
     }
 
-    if (hasNewMessages) {
-      // Only auto-scroll if user is near the bottom (within 150px)
-      const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
-      if (distanceFromBottom < 150) {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      }
+    if (hasNewMessages && isUserNearBottom.current) {
+      // New messages arrived and user was near bottom: scroll smoothly
+      programmaticScroll.current = true;
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
+    // If user scrolled up (isUserNearBottom = false), do nothing
   }, [chatMessages]);
 
   // Status counts from ALL conversations
@@ -582,10 +586,19 @@ export default function ConversasPage() {
           <div
             ref={messagesContainerRef}
             onScroll={() => {
+              // Ignore scroll events caused by our own programmatic scrolls
+              if (programmaticScroll.current) {
+                const el = messagesContainerRef.current;
+                if (el) {
+                  const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+                  if (dist < 5) programmaticScroll.current = false;
+                }
+                return;
+              }
               const el = messagesContainerRef.current;
               if (!el) return;
               const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-              shouldSnapToBottom.current = distanceFromBottom < 150;
+              isUserNearBottom.current = distanceFromBottom < 150;
             }}
             className="flex-1 overflow-y-auto p-5 space-y-3 bg-muted/30"
           >
