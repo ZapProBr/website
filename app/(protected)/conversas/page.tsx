@@ -208,6 +208,7 @@ export default function ConversasPage() {
       text,
       sent: true,
       read: false,
+      delivered: false,
       is_system: false,
       message_type: "text",
       created_at: new Date().toISOString(),
@@ -216,9 +217,9 @@ export default function ConversasPage() {
 
     try {
       const msg = await apiSendMessage(selected, { text });
-      // Replace optimistic msg with real one — delivered = double check
+      // Replace optimistic msg with real one (sent to server = single check still)
       setChatMessages((prev) =>
-        prev.map((m) => (m.id === tempId ? { ...msg, read: true } : m))
+        prev.map((m) => (m.id === tempId ? { ...msg } : m))
       );
       fetchConversations();
     } catch (err: unknown) {
@@ -560,7 +561,13 @@ export default function ConversasPage() {
                     <p>{msg.text}</p>
                     <div className={cn("flex items-center justify-end gap-1 mt-1", msg.sent ? "text-primary-foreground/70" : "text-muted-foreground")}>
                       <span className="text-[10px]">{formatTime(msg.created_at)}</span>
-                      {msg.sent && (msg.read ? <CheckCheck className="w-3 h-3" /> : <Check className="w-3 h-3" />)}
+                      {msg.sent && (
+                        msg.read
+                          ? <CheckCheck className="w-3 h-3 text-blue-400" />
+                          : msg.delivered
+                            ? <CheckCheck className="w-3 h-3" />
+                            : <Check className="w-3 h-3" />
+                      )}
                     </div>
                   </div>
                 </div>

@@ -258,6 +258,7 @@ export interface MessageItem {
   text: string;
   sent: boolean;
   read: boolean;
+  delivered: boolean;
   is_system: boolean;
   message_type: string;
   created_at: string;
