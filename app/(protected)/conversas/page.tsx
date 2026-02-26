@@ -82,6 +82,9 @@ export default function ConversasPage() {
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTypingSent = useRef<number>(0);
 
+  // Track which conversation we already synced the status filter for (prevent repeated auto-switch on poll)
+  const syncedFilterForRef = useRef<string | null>(null);
+
   // Media upload
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -134,14 +137,18 @@ export default function ConversasPage() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When conversations load and we have a URL id, switch status filter to show that conversation
+  // Only auto-switch ONCE per conversation selection (not on every poll)
   useEffect(() => {
     if (!selected || conversations.length === 0) return;
+    if (syncedFilterForRef.current === selected) return; // Already synced for this selection
     const conv = conversations.find((c) => c.id === selected);
-    if (conv && statusFilter !== "todos" && conv.status !== statusFilter) {
-      // Switch filter so the selected conversation is visible
-      setStatusFilter(conv.status as ConversationStatus);
+    if (conv) {
+      syncedFilterForRef.current = selected;
+      if (statusFilter !== "todos" && conv.status !== statusFilter) {
+        setStatusFilter(conv.status as ConversationStatus);
+      }
     }
-  }, [conversations]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [conversations, selected]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch reference data
   useEffect(() => {
