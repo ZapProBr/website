@@ -9,7 +9,7 @@ import {
   Search, Check, CheckCheck, Mic, X, Send as SendIcon,
   Smile, Image, FileText, Sticker, Plus,
   Trash2, Pause, Play, ArrowRightLeft, ChevronDown, CircleX,
-  Phone, Filter, Clock, User, MessageCircle,
+  Filter, Clock, User, MessageCircle,
 } from "lucide-react";
 import { getAudioStore } from "@/lib/audioStore";
 import { ClientDetailPanel } from "@/components/conversas/ClientDetailPanel";
@@ -29,7 +29,6 @@ import {
   listTags as apiListTags,
   sendTyping as apiSendTyping,
   sendMedia as apiSendMedia,
-  offerCall as apiOfferCall,
   getMediaUrl,
   type ConversationItem,
   type MessageItem,
@@ -718,29 +717,6 @@ export default function ConversasPage() {
               </div>
 
               <div className="flex items-center gap-2 flex-shrink-0 relative">
-                {/* WhatsApp Call */}
-                <button
-                  onClick={async () => {
-                    if (!selectedConv) return;
-                    const num = selectedConv.contact_phone.replace(/\D/g, "");
-                    const instance = selectedConv.connection_id;
-                    if (!instance) {
-                      toast.error("Conversa sem conexão associada.");
-                      return;
-                    }
-                    try {
-                      await apiOfferCall(instance, num);
-                      toast.success("Ligação iniciada!");
-                    } catch {
-                      toast.error("Erro ao iniciar ligação.");
-                    }
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors"
-                  title="Ligar via WhatsApp"
-                >
-                  <Phone className="w-4 h-4" />
-                </button>
-
                 {/* Transfer */}
                 <button
                   onClick={() => {
