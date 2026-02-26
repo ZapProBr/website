@@ -9,6 +9,8 @@ interface AudioPlayerProps {
   sent: boolean;
 }
 
+const BAR_COUNT = 40;
+
 function formatDuration(sec: number): string {
   if (!isFinite(sec) || sec < 0) return "0:00";
   const m = Math.floor(sec / 60);
@@ -16,19 +18,30 @@ function formatDuration(sec: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-// Generate deterministic "waveform" bars from a hash of the src URL
-function generateBars(count: number, seed: string): number[] {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) {
-    hash = ((hash << 5) - hash + seed.charCodeAt(i)) | 0;
-  }
+// Placeholder bars while real waveform loads
+function placeholderBars(count: number): number[] {
+  return Array.from({ length: count }, () => 0.15);
+}
+
+// Extract real waveform amplitudes from decoded audio buffer
+function extractWaveform(buffer: AudioBuffer, barCount: number): number[] {
+  const channel = buffer.getChannelData(0); // mono or first channel
+  const samplesPerBar = Math.floor(channel.length / barCount);
   const bars: number[] = [];
-  for (let i = 0; i < count; i++) {
-    hash = ((hash << 5) - hash + i * 7 + 13) | 0;
-    const val = ((Math.abs(hash) % 60) + 20) / 80; // 0.25–1.0
-    bars.push(val);
+
+  for (let i = 0; i < barCount; i++) {
+    let sum = 0;
+    const start = i * samplesPerBar;
+    const end = Math.min(start + samplesPerBar, channel.length);
+    for (let j = start; j < end; j++) {
+      sum += Math.abs(channel[j]);
+    }
+    bars.push(sum / (end - start));
   }
-  return bars;
+
+  // Normalize to 0.1–1.0 range
+  const max = Math.max(...bars, 0.001);
+  return bars.map((v) => Math.max(0.1, v / max));
 }
 
 export function AudioPlayer({ src, sent }: AudioPlayerProps) {
@@ -38,8 +51,37 @@ export function AudioPlayer({ src, sent }: AudioPlayerProps) {
   const [currentTime, setCurrentTime] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
-  const barsRef = useRef(generateBars(32, src));
+  const [bars, setBars] = useState<number[]>(placeholderBars(BAR_COUNT));
   const animRef = useRef<number>(0);
+  const waveformFetched = useRef(false);
+
+  // Fetch audio data and decode to extract real waveform
+  useEffect(() => {
+    if (waveformFetched.current) return;
+    waveformFetched.current = true;
+
+    let cancelled = false;
+    const ac = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+
+    fetch(src)
+      .then((res) => res.arrayBuffer())
+      .then((buf) => ac.decodeAudioData(buf))
+      .then((decoded) => {
+        if (!cancelled) {
+          setBars(extractWaveform(decoded, BAR_COUNT));
+        }
+      })
+      .catch(() => {
+        // On failure keep placeholder bars
+      })
+      .finally(() => {
+        ac.close().catch(() => {});
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [src]);
 
   // Update current time via requestAnimationFrame for smooth progress
   const tick = useCallback(() => {
@@ -119,7 +161,6 @@ export function AudioPlayer({ src, sent }: AudioPlayerProps) {
   };
 
   const progress = duration > 0 ? currentTime / duration : 0;
-  const bars = barsRef.current;
 
   return (
     <div className="flex items-center gap-2.5 px-3 py-2 min-w-[240px] max-w-[320px]">
