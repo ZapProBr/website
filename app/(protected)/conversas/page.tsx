@@ -77,6 +77,8 @@ export default function ConversasPage() {
   // Auto-scroll to bottom
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+  const prevMsgCount = useRef<number>(0);
+  const shouldSnapToBottom = useRef<boolean>(true);
 
   // Fetch reference data
   useEffect(() => {
@@ -135,18 +137,36 @@ export default function ConversasPage() {
     return () => clearInterval(interval);
   }, [selected, fetchMessages]);
 
-  // Auto-scroll to bottom when messages change
+  // Reset snap flag on conversation switch → always scroll to bottom
+  useEffect(() => {
+    shouldSnapToBottom.current = true;
+    prevMsgCount.current = 0;
+  }, [selected]);
+
+  // Auto-scroll to bottom
   useEffect(() => {
     if (chatMessages.length === 0) return;
     const container = messagesContainerRef.current;
-    if (container) {
-      // Always scroll to bottom: on load, new messages, or conversation switch
-      // Use a small timeout to let the DOM render first
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
-      }, 50);
+    if (!container) return;
+
+    const isNewConversation = prevMsgCount.current === 0;
+    const hasNewMessages = chatMessages.length > prevMsgCount.current;
+    prevMsgCount.current = chatMessages.length;
+
+    if (isNewConversation || shouldSnapToBottom.current) {
+      // Instant scroll on first load / conversation switch
+      container.scrollTop = container.scrollHeight;
+      return;
     }
-  }, [chatMessages, selected]);
+
+    if (hasNewMessages) {
+      // Only auto-scroll if user is near the bottom (within 150px)
+      const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+      if (distanceFromBottom < 150) {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }
+    }
+  }, [chatMessages]);
 
   // Status counts from ALL conversations
   const statusCounts = {
@@ -559,7 +579,16 @@ export default function ConversasPage() {
             </div>
           </div>
 
-          <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-5 space-y-3 bg-muted/30">
+          <div
+            ref={messagesContainerRef}
+            onScroll={() => {
+              const el = messagesContainerRef.current;
+              if (!el) return;
+              const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+              shouldSnapToBottom.current = distanceFromBottom < 150;
+            }}
+            className="flex-1 overflow-y-auto p-5 space-y-3 bg-muted/30"
+          >
             {chatMessages.map((msg) => {
               if (msg.is_system) {
                 return (
