@@ -277,7 +277,7 @@ export async function listMessages(conversationId: string, params?: { skip?: num
 
 export function getMediaUrl(conversationId: string, messageId: string): string {
   const token = getAccessToken();
-  return `${BASE}/api/conversations/${conversationId}/messages/${messageId}/media${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+  return `${BASE}/conversations/${conversationId}/messages/${messageId}/media${token ? `?token=${encodeURIComponent(token)}` : ""}`;
 }
 
 export function sendMessage(conversationId: string, data: { text: string; message_type?: string }): Promise<MessageItem> {
