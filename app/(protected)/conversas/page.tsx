@@ -74,6 +74,10 @@ export default function ConversasPage() {
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTypingSent = useRef<number>(0);
 
+  // Auto-scroll to bottom
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+
   // Fetch reference data
   useEffect(() => {
     apiListUsers().then(setApiUsers).catch(() => {});
@@ -130,6 +134,19 @@ export default function ConversasPage() {
     const interval = setInterval(fetchMessages, 3000);
     return () => clearInterval(interval);
   }, [selected, fetchMessages]);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (chatMessages.length === 0) return;
+    const container = messagesContainerRef.current;
+    if (container) {
+      // Always scroll to bottom: on load, new messages, or conversation switch
+      // Use a small timeout to let the DOM render first
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+      }, 50);
+    }
+  }, [chatMessages, selected]);
 
   // Status counts from ALL conversations
   const statusCounts = {
@@ -542,7 +559,7 @@ export default function ConversasPage() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-5 space-y-3 bg-muted/30">
+          <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-5 space-y-3 bg-muted/30">
             {chatMessages.map((msg) => {
               if (msg.is_system) {
                 return (
@@ -621,6 +638,7 @@ export default function ConversasPage() {
             {chatMessages.length === 0 && (
               <div className="flex justify-center pt-12 text-muted-foreground text-sm">Nenhuma mensagem ainda</div>
             )}
+            <div ref={messagesEndRef} />
           </div>
 
           <div className="px-5 py-3 border-t border-border relative">
