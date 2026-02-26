@@ -52,11 +52,12 @@ export default function ConversasPage() {
 
   // Selected conversation from URL
   const urlConvId = searchParams.get("id") ?? "";
+  const urlStatus = searchParams.get("status") as ConversationStatus | "todos" | null;
   const [selected, setSelectedState] = useState<string>(urlConvId);
   const [chatMessages, setChatMessages] = useState<MessageItem[]>([]);
   const [messageText, setMessageText] = useState("");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<ConversationStatus | "todos">("atendendo");
+  const [statusFilter, setStatusFilterState] = useState<ConversationStatus | "todos">(urlStatus ?? "atendendo");
   const [showAudioList, setShowAudioList] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
@@ -88,25 +89,44 @@ export default function ConversasPage() {
   const isFirstLoad = useRef<boolean>(true);
   const programmaticScroll = useRef<boolean>(false);
 
+  // Helper to build URL with current params
+  const updateUrl = useCallback((params: Record<string, string | null>) => {
+    const sp = new URLSearchParams(searchParams.toString());
+    for (const [k, v] of Object.entries(params)) {
+      if (v) sp.set(k, v); else sp.delete(k);
+    }
+    router.replace(`/conversas?${sp.toString()}`, { scroll: false });
+  }, [router, searchParams]);
+
   // Keep selected in sync with URL
   const setSelected = useCallback((id: string) => {
     setSelectedState(id);
-    const params = new URLSearchParams(searchParams.toString());
-    if (id) {
-      params.set("id", id);
-    } else {
-      params.delete("id");
-    }
-    router.replace(`/conversas?${params.toString()}`, { scroll: false });
-  }, [router, searchParams]);
+    updateUrl({ id: id || null });
+  }, [updateUrl]);
 
-  // On mount, restore from URL
+  // Keep status filter in sync with URL
+  const setStatusFilter = useCallback((status: ConversationStatus | "todos") => {
+    setStatusFilterState(status);
+    updateUrl({ status: status });
+  }, [updateUrl]);
+
+  // On mount, restore from URL and auto-switch status to match selected conversation
   useEffect(() => {
     const id = searchParams.get("id");
-    if (id && id !== selected) {
-      setSelectedState(id);
-    }
+    const status = searchParams.get("status") as ConversationStatus | "todos" | null;
+    if (id && id !== selected) setSelectedState(id);
+    if (status) setStatusFilterState(status);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When conversations load and we have a URL id, switch status filter to show that conversation
+  useEffect(() => {
+    if (!selected || conversations.length === 0) return;
+    const conv = conversations.find((c) => c.id === selected);
+    if (conv && statusFilter !== "todos" && conv.status !== statusFilter) {
+      // Switch filter so the selected conversation is visible
+      setStatusFilter(conv.status as ConversationStatus);
+    }
+  }, [conversations]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch reference data
   useEffect(() => {
