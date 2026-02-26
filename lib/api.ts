@@ -225,6 +225,7 @@ export interface ConversationItem {
   status: "aguardando" | "atendendo" | "finalizado";
   attendant_id: string | null;
   attendant_name: string | null;
+  connection_id: string | null;
   last_message: string | null;
   unread_count: number;
   created_at: string;
@@ -277,6 +278,10 @@ export function sendMessage(conversationId: string, data: { text: string; messag
 
 export function markMessagesRead(conversationId: string): Promise<{ updated: number }> {
   return api<{ updated: number }>(`/conversations/${conversationId}/messages/read`, { method: "PUT" });
+}
+
+export function sendTyping(conversationId: string): Promise<{ ok: boolean }> {
+  return api<{ ok: boolean }>(`/conversations/${conversationId}/messages/typing`, { method: "POST" });
 }
 
 // ── Evolution (WhatsApp instances) ─────────────────────

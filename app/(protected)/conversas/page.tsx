@@ -24,6 +24,7 @@ import {
   updateConversation as apiUpdateConversation,
   listUsers as apiListUsers,
   listTags as apiListTags,
+  sendTyping as apiSendTyping,
   type ConversationItem,
   type MessageItem,
   type User as ApiUser,
@@ -66,6 +67,10 @@ export default function ConversasPage() {
 
   // Transfer dialog state
   const [transferUser, setTransferUser] = useState("");
+
+  // Typing indicator debounce
+  const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTypingSent = useRef<number>(0);
 
   // Fetch reference data
   useEffect(() => {
@@ -192,6 +197,23 @@ export default function ConversasPage() {
   const insertEmoji = (emoji: string) => {
     setMessageText((prev) => prev + emoji);
     setShowEmoji(false);
+  };
+
+  const handleMessageInput = (value: string) => {
+    setMessageText(value);
+    // Send typing presence (debounced — at most once every 3s)
+    if (selected && value.trim()) {
+      const now = Date.now();
+      if (now - lastTypingSent.current > 3000) {
+        lastTypingSent.current = now;
+        apiSendTyping(selected).catch(() => {});
+      }
+      // Reset the paused-typing timer
+      if (typingTimeout.current) clearTimeout(typingTimeout.current);
+      typingTimeout.current = setTimeout(() => {
+        lastTypingSent.current = 0; // allow immediate re-send next time
+      }, 4000);
+    }
   };
 
   const handleTransfer = async () => {
@@ -638,7 +660,7 @@ export default function ConversasPage() {
                   type="text"
                   placeholder="Digite uma mensagem..."
                   value={messageText}
-                  onChange={(e) => setMessageText(e.target.value)}
+                  onChange={(e) => handleMessageInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                   className="flex-1 bg-muted rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
                 />
