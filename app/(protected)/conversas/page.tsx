@@ -89,6 +89,14 @@ export default function ConversasPage() {
   const isFirstLoad = useRef<boolean>(true);
   const programmaticScroll = useRef<boolean>(false);
 
+  // Scroll helper
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    programmaticScroll.current = true;
+    container.scrollTop = container.scrollHeight;
+  }, []);
+
   // Helper to build URL with current params
   const updateUrl = useCallback((params: Record<string, string | null>) => {
     const sp = new URLSearchParams(searchParams.toString());
@@ -203,11 +211,14 @@ export default function ConversasPage() {
     prevMsgCount.current = count;
 
     if (isFirstLoad.current) {
-      // First load or conversation switch: snap instantly
+      // First load or conversation switch: snap instantly + retry for images
       isFirstLoad.current = false;
-      programmaticScroll.current = true;
-      container.scrollTop = container.scrollHeight;
-      return;
+      scrollToBottom();
+      // Retry after images may have loaded
+      const t1 = setTimeout(scrollToBottom, 100);
+      const t2 = setTimeout(scrollToBottom, 300);
+      const t3 = setTimeout(scrollToBottom, 600);
+      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
     }
 
     if (hasNewMessages && isUserNearBottom.current) {
@@ -216,7 +227,7 @@ export default function ConversasPage() {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
     // If user scrolled up (isUserNearBottom = false), do nothing
-  }, [chatMessages]);
+  }, [chatMessages, scrollToBottom]);
 
   // Status counts from ALL conversations
   const statusCounts = {
@@ -678,6 +689,7 @@ export default function ConversasPage() {
                             alt="Imagem"
                             className="w-full max-h-80 object-cover cursor-pointer"
                             loading="lazy"
+                            onLoad={() => { if (isUserNearBottom.current) scrollToBottom(); }}
                             onClick={() => window.open(getMediaUrl(selected, msg.id), "_blank")}
                           />
                         )}
