@@ -2,6 +2,7 @@
 
 import { AppLayout } from "@/components/AppLayout";
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -41,12 +42,17 @@ const statusFilters: { value: ConversationStatus | "todos"; label: string }[] = 
 ];
 
 export default function ConversasPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
   // API data
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
   const [apiUsers, setApiUsers] = useState<ApiUser[]>([]);
   const [apiTags, setApiTags] = useState<ApiTag[]>([]);
 
-  const [selected, setSelected] = useState<string>("");
+  // Selected conversation from URL
+  const urlConvId = searchParams.get("id") ?? "";
+  const [selected, setSelectedState] = useState<string>(urlConvId);
   const [chatMessages, setChatMessages] = useState<MessageItem[]>([]);
   const [messageText, setMessageText] = useState("");
   const [search, setSearch] = useState("");
@@ -81,6 +87,26 @@ export default function ConversasPage() {
   const isUserNearBottom = useRef<boolean>(true);
   const isFirstLoad = useRef<boolean>(true);
   const programmaticScroll = useRef<boolean>(false);
+
+  // Keep selected in sync with URL
+  const setSelected = useCallback((id: string) => {
+    setSelectedState(id);
+    const params = new URLSearchParams(searchParams.toString());
+    if (id) {
+      params.set("id", id);
+    } else {
+      params.delete("id");
+    }
+    router.replace(`/conversas?${params.toString()}`, { scroll: false });
+  }, [router, searchParams]);
+
+  // On mount, restore from URL
+  useEffect(() => {
+    const id = searchParams.get("id");
+    if (id && id !== selected) {
+      setSelectedState(id);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch reference data
   useEffect(() => {
@@ -184,12 +210,15 @@ export default function ConversasPage() {
     .filter((c) => statusFilter === "todos" || c.status === statusFilter)
     .filter((c) => c.contact_name.toLowerCase().includes(search.toLowerCase()));
 
-  // Auto-select first conversation when filtered list changes
+  // Auto-select first conversation when filtered list changes (only if no URL selection)
   useEffect(() => {
     if (filtered.length > 0 && !filtered.find((c) => c.id === selected)) {
-      setSelected(filtered[0].id);
+      // Only auto-select if we don't have a valid URL selection already loading
+      if (!selected || !conversations.find((c) => c.id === selected)) {
+        setSelected(filtered[0].id);
+      }
     }
-  }, [filtered, selected]);
+  }, [filtered, selected, conversations, setSelected]);
 
   const selectedConv = conversations.find((c) => c.id === selected);
 
