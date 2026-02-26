@@ -98,13 +98,23 @@ export default function ConversasPage() {
   // Fetch messages when selected conversation changes
   const fetchMessages = useCallback(async () => {
     if (!selected) return;
+    // Skip polling while a send is in-flight to preserve optimistic message
+    if (isSending) return;
     try {
       const msgs = await apiListMessages(selected, { limit: 100 });
-      setChatMessages(msgs);
+      setChatMessages((prev) => {
+        // If we have optimistic (temp) messages, keep them and merge
+        const tempMsgs = prev.filter((m) => String(m.id).startsWith("temp-"));
+        if (tempMsgs.length === 0) return msgs;
+        // Merge: use API messages + keep temp msgs that aren't yet in API results
+        const apiIds = new Set(msgs.map((m) => m.id));
+        const survivingTemps = tempMsgs.filter((t) => !apiIds.has(t.id));
+        return [...msgs, ...survivingTemps];
+      });
     } catch {
       setChatMessages([]);
     }
-  }, [selected]);
+  }, [selected, isSending]);
 
   useEffect(() => {
     if (!selected) return;
