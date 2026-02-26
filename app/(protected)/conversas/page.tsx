@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { getAudioStore } from "@/lib/audioStore";
 import { ClientDetailPanel } from "@/components/conversas/ClientDetailPanel";
+import { AudioPlayer } from "@/components/conversas/AudioPlayer";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
@@ -848,11 +849,7 @@ export default function ConversasPage() {
                           />
                         )}
                         {msg.media_mimetype.startsWith("audio/") && (
-                          <div className="px-3 pt-2">
-                            <audio controls className="w-full max-w-[280px]" preload="none">
-                              <source src={getMediaUrl(selected, msg.id)} type={msg.media_mimetype} />
-                            </audio>
-                          </div>
+                          <AudioPlayer src={getMediaUrl(selected, msg.id)} sent={msg.sent} />
                         )}
                         {msg.media_mimetype.startsWith("video/") && (
                           <video controls className="w-full max-h-80" preload="none">
