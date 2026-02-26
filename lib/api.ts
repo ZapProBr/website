@@ -221,6 +221,7 @@ export interface ConversationItem {
   contact_id: string;
   contact_name: string;
   contact_phone: string;
+  contact_photo: string | null;
   status: "aguardando" | "atendendo" | "finalizado";
   attendant_id: string | null;
   attendant_name: string | null;

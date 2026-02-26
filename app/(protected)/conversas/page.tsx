@@ -291,7 +291,18 @@ export default function ConversasPage() {
                 )}
               >
                 <div className="relative flex-shrink-0 mt-0.5">
-                  <div className="w-10 h-10 rounded-full gradient-green flex items-center justify-center text-xs font-bold text-primary-foreground">
+                  {conv.contact_photo ? (
+                    <img
+                      src={conv.contact_photo}
+                      alt={conv.contact_name}
+                      className="w-10 h-10 rounded-full object-cover"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }}
+                    />
+                  ) : null}
+                  <div className={cn(
+                    "w-10 h-10 rounded-full gradient-green flex items-center justify-center text-xs font-bold text-primary-foreground",
+                    conv.contact_photo && "hidden"
+                  )}>
                     {getInitials(conv.contact_name)}
                   </div>
                 </div>
@@ -335,7 +346,18 @@ export default function ConversasPage() {
             <div className="flex items-center justify-between px-5 py-3">
               <div className="flex items-center gap-3 min-w-0">
                 <button onClick={() => setShowClientPanel(true)} className="flex-shrink-0">
-                  <div className="w-10 h-10 rounded-full gradient-green flex items-center justify-center text-xs font-bold text-primary-foreground">
+                  {selectedConv?.contact_photo ? (
+                    <img
+                      src={selectedConv.contact_photo}
+                      alt={selectedConv.contact_name}
+                      className="w-10 h-10 rounded-full object-cover"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }}
+                    />
+                  ) : null}
+                  <div className={cn(
+                    "w-10 h-10 rounded-full gradient-green flex items-center justify-center text-xs font-bold text-primary-foreground",
+                    selectedConv?.contact_photo && "hidden"
+                  )}>
                     {selectedConv ? getInitials(selectedConv.contact_name) : "?"}
                   </div>
                 </button>
@@ -635,7 +657,7 @@ export default function ConversasPage() {
         <ClientDetailPanel
           open={showClientPanel}
           onOpenChange={setShowClientPanel}
-          contact={selectedConv ? { name: selectedConv.contact_name, phone: selectedConv.contact_phone, avatar: getInitials(selectedConv.contact_name) } : null}
+          contact={selectedConv ? { name: selectedConv.contact_name, phone: selectedConv.contact_phone, avatar: getInitials(selectedConv.contact_name), photo: selectedConv.contact_photo } : null}
           tags={[]}
           onToggleTag={() => {}}
         />

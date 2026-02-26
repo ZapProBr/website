@@ -32,6 +32,7 @@ interface ClientDetailPanelProps {
     name: string;
     phone: string;
     avatar: string;
+    photo?: string | null;
   } | null;
   tags: string[];
   onToggleTag: (tag: string) => void;
@@ -161,9 +162,13 @@ export function ClientDetailPanel({
       <SheetContent side="right" className="w-[400px] sm:max-w-[400px] p-0 flex flex-col">
         <SheetHeader className="px-5 pt-5 pb-4 border-b border-border">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full gradient-green flex items-center justify-center text-sm font-bold text-primary-foreground">
-              {contact.avatar}
-            </div>
+            {contact.photo ? (
+              <img src={contact.photo} alt={contact.name} className="w-12 h-12 rounded-full object-cover" />
+            ) : (
+              <div className="w-12 h-12 rounded-full gradient-green flex items-center justify-center text-sm font-bold text-primary-foreground">
+                {contact.avatar}
+              </div>
+            )}
             <div>
               <SheetTitle className="text-base">{contact.name}</SheetTitle>
               <SheetDescription className="text-xs">{contact.phone}</SheetDescription>
