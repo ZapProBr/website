@@ -263,6 +263,7 @@ export interface MessageItem {
   message_type: string;
   has_media: boolean;
   media_mimetype: string | null;
+  reaction: string | null;
   created_at: string;
 }
 

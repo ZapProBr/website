@@ -295,6 +295,7 @@ export default function ConversasPage() {
       message_type: messageType,
       has_media: true,
       media_mimetype: mimetype,
+      reaction: null,
       created_at: new Date().toISOString(),
     };
     setChatMessages((prev) => [...prev, optimisticMsg]);
@@ -470,6 +471,7 @@ export default function ConversasPage() {
       message_type: "text",
       has_media: false,
       media_mimetype: null,
+      reaction: null,
       created_at: new Date().toISOString(),
     };
     setChatMessages((prev) => [...prev, optimisticMsg]);
@@ -829,8 +831,9 @@ export default function ConversasPage() {
               }
               return (
                 <div key={msg.id} className={cn("flex", msg.sent ? "justify-end" : "justify-start")}>
+                  <div className={cn("relative max-w-[65%]", msg.reaction && "mb-3")}>
                   <div className={cn(
-                    "max-w-[65%] rounded-2xl text-sm overflow-hidden",
+                    "rounded-2xl text-sm overflow-hidden",
                     msg.sent
                       ? "bg-primary text-primary-foreground rounded-br-md"
                       : "bg-muted text-foreground rounded-bl-md"
@@ -885,6 +888,16 @@ export default function ConversasPage() {
                             : <Check className="w-3 h-3" />
                       )}
                     </div>
+                  </div>
+                  {/* Reaction emoji displayed on the message bubble */}
+                  {msg.reaction && (
+                    <div className={cn(
+                      "absolute -bottom-3 px-1.5 py-0.5 rounded-full bg-card border border-border shadow-sm text-sm leading-none select-none",
+                      msg.sent ? "right-2" : "left-2"
+                    )}>
+                      {msg.reaction}
+                    </div>
+                  )}
                   </div>
                 </div>
               );
