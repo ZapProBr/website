@@ -53,6 +53,7 @@ export default function ConversasPage() {
   const [showAudioList, setShowAudioList] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [recordTime, setRecordTime] = useState(0);
@@ -183,14 +184,38 @@ export default function ConversasPage() {
   };
 
   const sendMessage = async () => {
-    if (!messageText.trim() || !selected) return;
+    if (!messageText.trim() || !selected || isSending) return;
+    const text = messageText.trim();
+    setIsSending(true);
+    setMessageText("");
+
+    // Optimistic: show message immediately with single check
+    const tempId = `temp-${Date.now()}`;
+    const optimisticMsg: MessageItem = {
+      id: tempId,
+      conversation_id: selected,
+      sender_id: null,
+      text,
+      sent: true,
+      read: false,
+      is_system: false,
+      message_type: "text",
+      created_at: new Date().toISOString(),
+    };
+    setChatMessages((prev) => [...prev, optimisticMsg]);
+
     try {
-      const msg = await apiSendMessage(selected, { text: messageText });
-      setChatMessages((prev) => [...prev, msg]);
-      setMessageText("");
-      fetchConversations(); // refresh last_message
+      const msg = await apiSendMessage(selected, { text });
+      // Replace optimistic msg with real one — delivered = double check
+      setChatMessages((prev) =>
+        prev.map((m) => (m.id === tempId ? { ...msg, read: true } : m))
+      );
+      fetchConversations();
     } catch (err: unknown) {
+      setChatMessages((prev) => prev.filter((m) => m.id !== tempId));
       toast.error(err instanceof Error ? err.message : "Erro ao enviar");
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -667,7 +692,16 @@ export default function ConversasPage() {
                 <button onClick={startRecording} className="p-2.5 rounded-lg transition-colors flex-shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted" title="Gravar áudio">
                   <Mic className="w-5 h-5" />
                 </button>
-                <button onClick={sendMessage} className="p-2.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex-shrink-0">
+                <button
+                  onClick={sendMessage}
+                  disabled={isSending || !messageText.trim()}
+                  className={cn(
+                    "p-2.5 rounded-lg transition-colors flex-shrink-0",
+                    isSending || !messageText.trim()
+                      ? "bg-muted text-muted-foreground cursor-not-allowed"
+                      : "bg-primary text-primary-foreground hover:bg-primary/90"
+                  )}
+                >
                   <SendIcon className="w-5 h-5" />
                 </button>
               </div>
