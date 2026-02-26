@@ -228,6 +228,7 @@ export interface ConversationItem {
   connection_id: string | null;
   last_message: string | null;
   unread_count: number;
+  tags: Tag[];
   created_at: string;
   updated_at: string;
 }
@@ -248,6 +249,32 @@ export function createConversation(data: { contact_id: string; status?: string }
 
 export function updateConversation(id: string, data: Partial<{ status: string; attendant_id: string }>): Promise<ConversationItem> {
   return api<ConversationItem>(`/conversations/${id}`, { method: "PUT", body: JSON.stringify(data) });
+}
+
+export function updateConversationTags(id: string, tag_ids: string[]): Promise<ConversationItem> {
+  return api<ConversationItem>(`/conversations/${id}/tags`, { method: "PUT", body: JSON.stringify({ tag_ids }) });
+}
+
+// ── Notes ──────────────────────────────────────────────
+export interface NoteItem {
+  id: string;
+  conversation_id: string;
+  user_id: string | null;
+  user_name: string | null;
+  text: string;
+  created_at: string;
+}
+
+export function listNotes(conversationId: string): Promise<NoteItem[]> {
+  return api<NoteItem[]>(`/conversations/${conversationId}/notes`);
+}
+
+export function createNote(conversationId: string, text: string): Promise<NoteItem> {
+  return api<NoteItem>(`/conversations/${conversationId}/notes`, { method: "POST", body: JSON.stringify({ text }) });
+}
+
+export function deleteNote(conversationId: string, noteId: string): Promise<void> {
+  return api<void>(`/conversations/${conversationId}/notes/${noteId}`, { method: "DELETE" });
 }
 
 // ── Messages ───────────────────────────────────────────
