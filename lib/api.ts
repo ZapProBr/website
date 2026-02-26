@@ -340,3 +340,10 @@ export function logoutInstance(name: string): Promise<{ ok: boolean }> {
 export function deleteInstance(name: string): Promise<{ ok: boolean }> {
   return api<{ ok: boolean }>(`/evolution/instances/${encodeURIComponent(name)}`, { method: "DELETE" });
 }
+
+export function offerCall(instanceName: string, number: string, isVideo = false): Promise<unknown> {
+  return api<unknown>(`/evolution/instances/${encodeURIComponent(instanceName)}/call`, {
+    method: "POST",
+    body: JSON.stringify({ number, callDuration: 30, isVideo }),
+  });
+}

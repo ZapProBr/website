@@ -29,6 +29,7 @@ import {
   listTags as apiListTags,
   sendTyping as apiSendTyping,
   sendMedia as apiSendMedia,
+  offerCall as apiOfferCall,
   getMediaUrl,
   type ConversationItem,
   type MessageItem,
@@ -719,13 +720,23 @@ export default function ConversasPage() {
               <div className="flex items-center gap-2 flex-shrink-0 relative">
                 {/* WhatsApp Call */}
                 <button
-                  onClick={() => {
-                    if (selectedConv) {
-                      const num = selectedConv.contact_phone.replace(/\D/g, "");
-                      window.open(`https://wa.me/55${num}`, "_blank");
+                  onClick={async () => {
+                    if (!selectedConv) return;
+                    const num = selectedConv.contact_phone.replace(/\D/g, "");
+                    const instance = selectedConv.connection_id;
+                    if (!instance) {
+                      toast.error("Conversa sem conexão associada.");
+                      return;
+                    }
+                    try {
+                      await apiOfferCall(instance, num);
+                      toast.success("Ligação iniciada!");
+                    } catch {
+                      toast.error("Erro ao iniciar ligação.");
                     }
                   }}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors"
+                  title="Ligar via WhatsApp"
                 >
                   <Phone className="w-4 h-4" />
                 </button>
