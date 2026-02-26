@@ -73,17 +73,13 @@ export default function ConversasPage() {
     apiListTags().then(setApiTags).catch(() => {});
   }, []);
 
-  // Fetch conversations
+  // Fetch ALL conversations (no server filter — client filters for display)
   const fetchConversations = useCallback(async () => {
     try {
-      const data = await apiListConversations(
-        statusFilter !== "todos" ? { status: statusFilter } : undefined
-      );
+      const data = await apiListConversations();
       setConversations(data);
-      // Auto-select first if none selected
-      if (!selected && data.length > 0) setSelected(data[0].id);
     } catch { /* silently fail */ }
-  }, [statusFilter, selected]);
+  }, []);
 
   useEffect(() => { fetchConversations(); }, [fetchConversations]);
 
@@ -118,16 +114,24 @@ export default function ConversasPage() {
     return () => clearInterval(interval);
   }, [selected, fetchMessages]);
 
-  // Filter conversations by search
-  const filtered = conversations.filter((c) =>
-    c.contact_name.toLowerCase().includes(search.toLowerCase())
-  );
-
+  // Status counts from ALL conversations
   const statusCounts = {
     aguardando: conversations.filter((c) => c.status === "aguardando").length,
     atendendo: conversations.filter((c) => c.status === "atendendo").length,
     finalizado: conversations.filter((c) => c.status === "finalizado").length,
   };
+
+  // Filter conversations by status + search
+  const filtered = conversations
+    .filter((c) => statusFilter === "todos" || c.status === statusFilter)
+    .filter((c) => c.contact_name.toLowerCase().includes(search.toLowerCase()));
+
+  // Auto-select first conversation when filtered list changes
+  useEffect(() => {
+    if (filtered.length > 0 && !filtered.find((c) => c.id === selected)) {
+      setSelected(filtered[0].id);
+    }
+  }, [filtered, selected]);
 
   const selectedConv = conversations.find((c) => c.id === selected);
 
