@@ -89,6 +89,7 @@ export default function ConfiguracoesPage() {
   const [editTagColor, setEditTagColor] = useState("");
   const { theme, setTheme } = useTheme();
   const [currentPlan, setCurrentPlan] = useState("basic");
+  const [myRole, setMyRole] = useState<"admin" | "atendente">("atendente");
   const [loadingTags, setLoadingTags] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
 
@@ -107,7 +108,7 @@ export default function ConfiguracoesPage() {
 
   // Fetch current user plan
   useEffect(() => {
-    getMe().then((u) => setCurrentPlan(u.plan)).catch(() => {});
+    getMe().then((u) => { setCurrentPlan(u.plan); setMyRole(u.role); }).catch(() => {});
   }, []);
 
   // Fetch instances
@@ -319,7 +320,7 @@ export default function ConfiguracoesPage() {
 
         {/* Tabs */}
         <div className="flex gap-1 bg-muted/50 p-1 rounded-xl">
-          {tabs.map((tab) => (
+          {tabs.filter((tab) => tab.key !== "usuarios" || myRole === "admin").map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
