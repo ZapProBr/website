@@ -1,38 +1,25 @@
 "use client";
 
 import { AppLayout } from "@/components/AppLayout";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Search, Plus, Filter, Upload, Download, Trash2, Pencil, Phone, Mail, Calendar, ChevronUp, ChevronDown, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getTagStore, getTagColor } from "@/lib/tagStore";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
-
-interface Contato {
-  id: string;
-  name: string;
-  phone: string;
-  email: string;
-  tags: string[];
-  createdAt: string;
-}
-
-const contatosMock: Contato[] = [
-  { id: "1", name: "Adelson Silva", phone: "+55 (33) 9703-8621", email: "adelson@email.com", tags: ["Lead Quente"], createdAt: "03/02/2026, 04:30" },
-  { id: "2", name: "Analice Vieira de Sousa", phone: "+55 (89) 8111-9529", email: "-", tags: ["Cliente VIP"], createdAt: "02/02/2026, 21:45" },
-  { id: "3", name: "Antônio Carlos Di Palma", phone: "+55 (11) 94794-6005", email: "antonio@email.com", tags: ["Parceiro"], createdAt: "04/02/2026, 06:04" },
-  { id: "4", name: "Antônio Pereira", phone: "+55 (21) 99667-3300", email: "-", tags: ["Suporte"], createdAt: "02/02/2026, 21:21" },
-  { id: "5", name: "Cícero Carlos", phone: "+55 (87) 9610-5912", email: "cicero@email.com", tags: ["Lead Quente", "Cliente VIP"], createdAt: "02/02/2026, 20:09" },
-  { id: "6", name: "Debora Cristiane", phone: "+55 (66) 9607-0628", email: "debora@email.com", tags: ["Inativo"], createdAt: "02/02/2026, 13:38" },
-  { id: "7", name: "Deraldo Santos", phone: "+55 (37) 9999-9200", email: "-", tags: [], createdAt: "02/02/2026, 21:31" },
-  { id: "8", name: "Eduardo Mendes", phone: "+55 (65) 9628-4314", email: "eduardo@email.com", tags: ["Parceiro"], createdAt: "02/02/2026, 11:34" },
-  { id: "9", name: "ENEIDA Oliveira", phone: "+55 (75) 9123-3985", email: "-", tags: ["Suporte"], createdAt: "02/02/2026, 22:03" },
-  { id: "10", name: "Erisvar Lima", phone: "+55 (62) 8100-9882", email: "erisvar@email.com", tags: ["Lead Quente"], createdAt: "02/02/2026, 21:19" },
-];
+import {
+  listContacts,
+  createContact,
+  updateContact,
+  deleteContact,
+  bulkDeleteContacts,
+  listTags as apiListTags,
+  type Contact,
+  type Tag,
+} from "@/lib/api";
 
 const avatarColors = [
   "bg-primary text-primary-foreground",
@@ -55,30 +42,44 @@ type SortDir = "asc" | "desc";
 
 export default function ContatosPage() {
   const router = useRouter();
-  const [contatos, setContatos] = useState<Contato[]>(contatosMock);
+  const [contatos, setContatos] = useState<Contact[]>([]);
+  const [allTags, setAllTags] = useState<Tag[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [showFilter, setShowFilter] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", phone: "", email: "", tags: "" });
+  const [form, setForm] = useState({ name: "", phone: "", email: "", tag_ids: [] as string[] });
+  const [loading, setLoading] = useState(true);
 
-  const allTags = getTagStore();
+  const fetchContacts = useCallback(async () => {
+    try {
+      const data = await listContacts({ search: searchQuery || undefined, tag_id: selectedTagId || undefined });
+      setContatos(data);
+    } catch { /* silently fail */ }
+    setLoading(false);
+  }, [searchQuery, selectedTagId]);
+
+  const fetchTags = useCallback(async () => {
+    try { setAllTags(await apiListTags()); } catch { /* silently fail */ }
+  }, []);
+
+  useEffect(() => { fetchTags(); }, [fetchTags]);
+  useEffect(() => { fetchContacts(); }, [fetchContacts]);
+
+  const getTagColor = (tagName: string) => {
+    const found = allTags.find((t) => t.name === tagName);
+    return found?.color || "#22c55e";
+  };
 
   const filtered = contatos
-    .filter((c) => {
-      const q = searchQuery.toLowerCase();
-      const matchSearch = !q || c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q) || c.phone.includes(q) || c.tags.some((t) => t.toLowerCase().includes(q));
-      const matchTag = !selectedTag || c.tags.includes(selectedTag);
-      return matchSearch && matchTag;
-    })
     .sort((a, b) => {
       const dir = sortDir === "asc" ? 1 : -1;
       if (sortField === "name") return a.name.localeCompare(b.name) * dir;
-      return a.createdAt.localeCompare(b.createdAt) * dir;
+      return a.created_at.localeCompare(b.created_at) * dir;
     });
 
   const toggleSort = (field: SortField) => {
@@ -91,41 +92,47 @@ export default function ContatosPage() {
 
   const openNewModal = () => {
     setEditingId(null);
-    setForm({ name: "", phone: "", email: "", tags: "" });
+    setForm({ name: "", phone: "", email: "", tag_ids: [] });
     setShowModal(true);
   };
 
-  const openEditModal = (c: Contato) => {
+  const openEditModal = (c: Contact) => {
     setEditingId(c.id);
-    setForm({ name: c.name, phone: c.phone, email: c.email === "-" ? "" : c.email, tags: c.tags.join(", ") });
+    setForm({ name: c.name, phone: c.phone, email: c.email || "", tag_ids: c.tags.map((t) => t.id) });
     setShowModal(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.name.trim()) return;
-    const tags = form.tags.split(",").map((t) => t.trim()).filter(Boolean);
-    const now = new Date().toLocaleDateString("pt-BR") + ", " + new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-
-    if (editingId) {
-      setContatos((prev) => prev.map((c) => c.id === editingId ? { ...c, name: form.name, phone: form.phone, email: form.email || "-", tags } : c));
-      toast.success("Contato atualizado");
-    } else {
-      const newContact: Contato = { id: `c-${Date.now()}`, name: form.name, phone: form.phone, email: form.email || "-", tags, createdAt: now };
-      setContatos((prev) => [...prev, newContact]);
-      toast.success("Contato adicionado");
+    try {
+      if (editingId) {
+        await updateContact(editingId, { name: form.name, phone: form.phone, email: form.email || undefined, tag_ids: form.tag_ids });
+        toast.success("Contato atualizado");
+      } else {
+        await createContact({ name: form.name, phone: form.phone, email: form.email || undefined, tag_ids: form.tag_ids });
+        toast.success("Contato adicionado");
+      }
+      fetchContacts();
+      setShowModal(false);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Erro");
     }
-    setShowModal(false);
   };
 
-  const handleDelete = () => {
-    setContatos((prev) => prev.filter((c) => !selectedIds.includes(c.id)));
-    toast.success(`${selectedIds.length} contato(s) excluído(s)`);
-    setSelectedIds([]);
+  const handleDelete = async () => {
+    try {
+      await bulkDeleteContacts(selectedIds);
+      toast.success(`${selectedIds.length} contato(s) excluído(s)`);
+      setSelectedIds([]);
+      fetchContacts();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Erro");
+    }
   };
 
   const handleExport = () => {
     const header = "Nome,Telefone,Email,Tags,Data de Criação\n";
-    const rows = filtered.map((c) => `"${c.name}","${c.phone}","${c.email}","${c.tags.join("; ")}","${c.createdAt}"`).join("\n");
+    const rows = filtered.map((c) => `"${c.name}","${c.phone}","${c.email || ""}","${c.tags.map((t) => t.name).join("; ")}","${new Date(c.created_at).toLocaleDateString("pt-BR")}"`).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -136,7 +143,7 @@ export default function ContatosPage() {
     toast.success("Contatos exportados");
   };
 
-  const startConversation = (c: Contato) => {
+  const startConversation = (c: Contact) => {
     router.push(`/conversas?contactName=${encodeURIComponent(c.name)}&contactPhone=${encodeURIComponent(c.phone)}`);
     toast.success(`Abrindo conversa com ${c.name}`);
   };
@@ -197,9 +204,9 @@ export default function ContatosPage() {
           {showFilter && (
             <div className="flex items-center gap-2 flex-wrap pt-1">
               <span className="text-xs text-muted-foreground font-medium">Tags:</span>
-              <button onClick={() => setSelectedTag(null)} className={cn("text-xs px-3 py-1 rounded-full font-medium transition-colors", !selectedTag ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80")}>Todas</button>
+              <button onClick={() => setSelectedTagId(null)} className={cn("text-xs px-3 py-1 rounded-full font-medium transition-colors", !selectedTagId ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80")}>Todas</button>
               {allTags.map((tag) => (
-                <button key={tag.name} onClick={() => setSelectedTag(selectedTag === tag.name ? null : tag.name)} className={cn("text-xs px-3 py-1 rounded-full font-medium transition-colors border", selectedTag === tag.name ? "border-transparent text-white" : "border-transparent hover:opacity-80")} style={{ backgroundColor: selectedTag === tag.name ? tag.color : `${tag.color}20`, color: selectedTag === tag.name ? "white" : tag.color }}>{tag.name}</button>
+                <button key={tag.id} onClick={() => setSelectedTagId(selectedTagId === tag.id ? null : tag.id)} className={cn("text-xs px-3 py-1 rounded-full font-medium transition-colors border", selectedTagId === tag.id ? "border-transparent text-white" : "border-transparent hover:opacity-80")} style={{ backgroundColor: selectedTagId === tag.id ? tag.color : `${tag.color}20`, color: selectedTagId === tag.id ? "white" : tag.color }}>{tag.name}</button>
               ))}
             </div>
           )}
@@ -229,15 +236,15 @@ export default function ContatosPage() {
                       <span className="text-sm font-medium text-foreground">{c.name}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-3.5"><div className="flex items-center gap-1.5 text-sm text-muted-foreground"><Mail className="w-3.5 h-3.5" />{c.email}</div></td>
+                  <td className="px-4 py-3.5"><div className="flex items-center gap-1.5 text-sm text-muted-foreground"><Mail className="w-3.5 h-3.5" />{c.email || "—"}</div></td>
                   <td className="px-4 py-3.5"><div className="flex items-center gap-1.5 text-sm text-muted-foreground"><Phone className="w-3.5 h-3.5" />{c.phone}</div></td>
                   <td className="px-4 py-3.5">
                     <div className="flex gap-1.5 flex-wrap">
-                      {c.tags.map((tag) => (<span key={tag} className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: `${getTagColor(tag)}20`, color: getTagColor(tag) }}>{tag}</span>))}
+                      {c.tags.map((tag) => (<span key={tag.id} className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: `${tag.color}20`, color: tag.color }}>{tag.name}</span>))}
                       {c.tags.length === 0 && <span className="text-xs text-muted-foreground/40">—</span>}
                     </div>
                   </td>
-                  <td className="px-4 py-3.5"><div className="flex items-center gap-1.5 text-sm text-muted-foreground"><Calendar className="w-3.5 h-3.5" />{c.createdAt}</div></td>
+                  <td className="px-4 py-3.5"><div className="flex items-center gap-1.5 text-sm text-muted-foreground"><Calendar className="w-3.5 h-3.5" />{new Date(c.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</div></td>
                   <td className="px-4 py-3.5 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <button onClick={() => startConversation(c)} className="p-1.5 rounded-md hover:bg-primary/10 transition-colors text-muted-foreground hover:text-primary" title="Iniciar conversa">
@@ -269,7 +276,25 @@ export default function ContatosPage() {
             <div><Label>Nome *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Nome completo" /></div>
             <div><Label>Telefone</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+55 (00) 00000-0000" /></div>
             <div><Label>E-mail</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="email@exemplo.com" /></div>
-            <div><Label>Tags (separadas por vírgula)</Label><Input value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} placeholder="Lead Quente, VIP" /></div>
+            <div>
+              <Label>Tags</Label>
+              <div className="flex gap-2 flex-wrap mt-1">
+                {allTags.map((tag) => {
+                  const selected = form.tag_ids.includes(tag.id);
+                  return (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, tag_ids: selected ? f.tag_ids.filter((id) => id !== tag.id) : [...f.tag_ids, tag.id] }))}
+                      className={cn("text-xs px-3 py-1 rounded-full font-medium transition-colors border", selected ? "border-transparent text-white" : "border-transparent hover:opacity-80")}
+                      style={{ backgroundColor: selected ? tag.color : `${tag.color}20`, color: selected ? "white" : tag.color }}
+                    >
+                      {tag.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowModal(false)}>Cancelar</Button>

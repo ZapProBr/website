@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { getMe, listConversations, clearTokens, type UserMe } from "@/lib/api";
 import {
   MessageCircle,
   BarChart3,
@@ -39,8 +40,8 @@ interface MenuItem {
   subItems?: SubItem[];
 }
 
-const menuItems: MenuItem[] = [
-  { title: "Conversas", url: "/conversas", icon: MessageCircle, count: 6 },
+const menuItemsDef: Omit<MenuItem, "count">[] = [
+  { title: "Conversas", url: "/conversas", icon: MessageCircle },
   { title: "CRM", url: "/crm", icon: BarChart3 },
   {
     title: "Disparos", url: "/disparos", icon: Megaphone, expandable: true,
@@ -54,12 +55,26 @@ const menuItems: MenuItem[] = [
   { title: "Contatos", url: "/contatos", icon: Users },
 ];
 
+
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { collapsed, toggle } = useSidebar();
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({});
+  const [user, setUser] = useState<UserMe | null>(null);
+  const [convCount, setConvCount] = useState(0);
+
+  useEffect(() => {
+    getMe().then(setUser).catch(() => {});
+    listConversations({ status: "atendendo" })
+      .then((list) => setConvCount(list.length))
+      .catch(() => {});
+  }, []);
+
+  const menuItems: MenuItem[] = menuItemsDef.map((m) =>
+    m.title === "Conversas" ? { ...m, count: convCount || undefined } : m
+  );
 
   const filteredItems = menuItems.filter((item) =>
     item.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -70,9 +85,14 @@ export function AppSidebar() {
   };
 
   const handleLogout = () => {
+    clearTokens();
     toast.success("Logout realizado");
     router.replace("/login");
   };
+
+  const userName = user?.name || "Usuário";
+  const userInitial = userName.charAt(0).toUpperCase();
+  const userPlan = user?.plan || "basic";
 
   return (
     <aside
@@ -213,17 +233,17 @@ export function AppSidebar() {
         {!collapsed ? (
           <div className="flex items-center gap-3 px-3.5">
             <div className="w-8 h-8 rounded-full bg-[var(--sidebar-muted)] flex items-center justify-center text-xs font-semibold text-[var(--sidebar-foreground)]">
-              U
+              {userInitial}
             </div>
-            <span className="text-sm font-medium text-[var(--sidebar-accent-foreground)] flex-1 truncate">Usuário</span>
+            <span className="text-sm font-medium text-[var(--sidebar-accent-foreground)] flex-1 truncate">{userName}</span>
             <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md bg-[var(--sidebar-primary)]/15 text-[var(--sidebar-primary)]">
-              Basic
+              {userPlan}
             </span>
           </div>
         ) : (
           <div className="flex justify-center">
-            <div className="w-8 h-8 rounded-full bg-[var(--sidebar-muted)] flex items-center justify-center text-xs font-semibold text-[var(--sidebar-foreground)]" title="Usuário">
-              U
+            <div className="w-8 h-8 rounded-full bg-[var(--sidebar-muted)] flex items-center justify-center text-xs font-semibold text-[var(--sidebar-foreground)]" title={userName}>
+              {userInitial}
             </div>
           </div>
         )}

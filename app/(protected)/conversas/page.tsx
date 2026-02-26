@@ -1,7 +1,7 @@
 "use client";
 
 import { AppLayout } from "@/components/AppLayout";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -11,39 +11,26 @@ import {
   Phone, Filter, Clock, User, MessageCircle,
 } from "lucide-react";
 import { getAudioStore } from "@/lib/audioStore";
-import { getTagColor, getTagStore } from "@/lib/tagStore";
 import { ClientDetailPanel } from "@/components/conversas/ClientDetailPanel";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import {
+  listConversations as apiListConversations,
+  listMessages as apiListMessages,
+  sendMessage as apiSendMessage,
+  markMessagesRead as apiMarkRead,
+  updateConversation as apiUpdateConversation,
+  listUsers as apiListUsers,
+  listTags as apiListTags,
+  type ConversationItem,
+  type MessageItem,
+  type User as ApiUser,
+  type Tag as ApiTag,
+} from "@/lib/api";
 
 type ConversationStatus = "aguardando" | "atendendo" | "finalizado";
-
-interface Conversation {
-  id: string;
-  name: string;
-  phone: string;
-  lastMessage: string;
-  time: string;
-  unread: number;
-  avatar: string;
-  status: "online" | "offline";
-  atendimentoStatus: ConversationStatus;
-  tags: string[];
-  attendant?: string;
-  connection?: string;
-  department?: string;
-}
-
-const conversations: Conversation[] = [
-  { id: "1", name: "João Silva", phone: "(11) 99999-1234", lastMessage: "Olá, gostaria de saber mais sobre o produto...", time: "10:32", unread: 3, avatar: "JS", status: "online", atendimentoStatus: "aguardando", tags: ["Lead Quente"], attendant: "Ana", connection: "Comercial 1", department: "Vendas" },
-  { id: "2", name: "Maria Souza", phone: "(21) 98888-5678", lastMessage: "Ok, pode enviar o orçamento", time: "09:15", unread: 0, avatar: "MS", status: "online", atendimentoStatus: "atendendo", tags: [], attendant: "Carlos", connection: "Suporte", department: "Suporte" },
-  { id: "3", name: "Carlos Lima", phone: "(31) 97777-9012", lastMessage: "Perfeito, vamos fechar então!", time: "Ontem", unread: 0, avatar: "CL", status: "offline", atendimentoStatus: "finalizado", tags: ["Cliente VIP"], attendant: "Ana", connection: "Comercial 1", department: "Vendas" },
-  { id: "4", name: "Ana Costa", phone: "(41) 96666-3456", lastMessage: "Preciso de mais informações", time: "Ontem", unread: 1, avatar: "AC", status: "offline", atendimentoStatus: "aguardando", tags: [], attendant: "Julia", connection: "Comercial 1", department: "Financeiro" },
-  { id: "5", name: "Pedro Rocha", phone: "(51) 95555-7890", lastMessage: "Obrigado pelo atendimento!", time: "23/02", unread: 0, avatar: "PR", status: "offline", atendimentoStatus: "finalizado", tags: ["Parceiro"], attendant: "Carlos", connection: "Suporte", department: "Suporte" },
-  { id: "6", name: "Fernanda Dias", phone: "(11) 91234-5678", lastMessage: "Quero saber sobre o plano Enterprise", time: "10:05", unread: 2, avatar: "FD", status: "online", atendimentoStatus: "atendendo", tags: ["Lead Quente", "Cliente VIP"], attendant: "Ana", connection: "Comercial 1", department: "Gestão" },
-];
 
 const statusFilters: { value: ConversationStatus | "todos"; label: string }[] = [
   { value: "atendendo", label: "Atendendo" },
@@ -51,37 +38,14 @@ const statusFilters: { value: ConversationStatus | "todos"; label: string }[] = 
   { value: "finalizado", label: "Finalizado" },
 ];
 
-const availableAttendants = ["Ana", "Carlos", "Julia"];
-const departments = ["Gestão", "Suporte", "Vendas", "Financeiro"];
-const connections = ["Comercial", "Suporte"];
-const departmentUsers: Record<string, string[]> = {
-  "Gestão": ["Admin Principal"],
-  "Suporte": ["Ana Paula"],
-  "Vendas": ["Carlos Silva"],
-  "Financeiro": ["Julia Mendes"],
-};
-
-interface Message {
-  id: string;
-  text: string;
-  time: string;
-  sent: boolean;
-  read: boolean;
-  isSystem?: boolean;
-}
-
-const initialMessages: Message[] = [
-  { id: "sys-0", text: "Atendimento iniciado", time: "10:19", sent: false, read: true, isSystem: true },
-  { id: "1", text: "Olá, boa tarde!", time: "10:20", sent: false, read: true },
-  { id: "2", text: "Boa tarde! Como posso ajudar?", time: "10:22", sent: true, read: true },
-  { id: "3", text: "Gostaria de saber mais sobre o produto Premium", time: "10:25", sent: false, read: true },
-  { id: "4", text: "Claro! O plano Premium inclui disparos ilimitados, CRM avançado e automações completas.", time: "10:28", sent: true, read: true },
-  { id: "5", text: "Olá, gostaria de saber mais sobre o produto...", time: "10:32", sent: false, read: false },
-];
-
 export default function ConversasPage() {
-  const [selected, setSelected] = useState<string>("1");
-  const [chatMessages, setChatMessages] = useState<Message[]>(initialMessages);
+  // API data
+  const [conversations, setConversations] = useState<ConversationItem[]>([]);
+  const [apiUsers, setApiUsers] = useState<ApiUser[]>([]);
+  const [apiTags, setApiTags] = useState<ApiTag[]>([]);
+
+  const [selected, setSelected] = useState<string>("");
+  const [chatMessages, setChatMessages] = useState<MessageItem[]>([]);
   const [messageText, setMessageText] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<ConversationStatus | "todos">("atendendo");
@@ -92,71 +56,87 @@ export default function ConversasPage() {
   const [isPaused, setIsPaused] = useState(false);
   const [recordTime, setRecordTime] = useState(0);
   const recordInterval = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [showTagMenu, setShowTagMenu] = useState(false);
   const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
-  const [convTags, setConvTags] = useState<Record<string, string[]>>({
-    "1": ["Lead Quente"],
-    "3": ["Cliente VIP"],
-    "5": ["Parceiro"],
-    "6": ["Lead Quente", "Cliente VIP"],
-  });
-  const [convStatuses, setConvStatuses] = useState<Record<string, ConversationStatus>>({
-    "1": "aguardando",
-    "2": "atendendo",
-    "3": "finalizado",
-    "4": "aguardando",
-    "5": "finalizado",
-    "6": "atendendo",
-  });
   const [showClientPanel, setShowClientPanel] = useState(false);
-  const [removedConvIds, setRemovedConvIds] = useState<string[]>([]);
 
   // Advanced filters
   const [showAdvFilters, setShowAdvFilters] = useState(false);
   const [filterAttendant, setFilterAttendant] = useState<string | null>(null);
-  const [filterTag, setFilterTag] = useState<string | null>(null);
 
   // Transfer dialog state
-  const [transferConnection, setTransferConnection] = useState(connections[0]);
-  const [transferDept, setTransferDept] = useState(departments[0]);
   const [transferUser, setTransferUser] = useState("");
 
-  const getConvStatus = (id: string) => convStatuses[id] || conversations.find((c) => c.id === id)?.atendimentoStatus || "aguardando";
+  // Fetch reference data
+  useEffect(() => {
+    apiListUsers().then(setApiUsers).catch(() => {});
+    apiListTags().then(setApiTags).catch(() => {});
+  }, []);
 
-  const activeConversations = conversations.filter(c => !removedConvIds.includes(c.id));
+  // Fetch conversations
+  const fetchConversations = useCallback(async () => {
+    try {
+      const data = await apiListConversations(
+        statusFilter !== "todos" ? { status: statusFilter } : undefined
+      );
+      setConversations(data);
+      // Auto-select first if none selected
+      if (!selected && data.length > 0) setSelected(data[0].id);
+    } catch { /* silently fail */ }
+  }, [statusFilter, selected]);
 
-  const filtered = activeConversations.filter((c) => {
-    const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === "todos" || getConvStatus(c.id) === statusFilter;
-    const matchesAttendant = !filterAttendant || c.attendant === filterAttendant;
-    const matchesTag = !filterTag || (convTags[c.id] || c.tags || []).includes(filterTag);
-    return matchesSearch && matchesStatus && matchesAttendant && matchesTag;
-  });
+  useEffect(() => { fetchConversations(); }, [fetchConversations]);
+
+  // Poll conversations every 5 seconds for webhook updates
+  useEffect(() => {
+    const interval = setInterval(fetchConversations, 5000);
+    return () => clearInterval(interval);
+  }, [fetchConversations]);
+
+  // Fetch messages when selected conversation changes
+  const fetchMessages = useCallback(async () => {
+    if (!selected) return;
+    try {
+      const msgs = await apiListMessages(selected, { limit: 100 });
+      setChatMessages(msgs);
+    } catch {
+      setChatMessages([]);
+    }
+  }, [selected]);
+
+  useEffect(() => {
+    if (!selected) return;
+    fetchMessages();
+    // Mark as read
+    apiMarkRead(selected).catch(() => {});
+  }, [selected, fetchMessages]);
+
+  // Poll messages every 3 seconds for the active conversation
+  useEffect(() => {
+    if (!selected) return;
+    const interval = setInterval(fetchMessages, 3000);
+    return () => clearInterval(interval);
+  }, [selected, fetchMessages]);
+
+  // Filter conversations by search
+  const filtered = conversations.filter((c) =>
+    c.contact_name.toLowerCase().includes(search.toLowerCase())
+  );
 
   const statusCounts = {
-    aguardando: activeConversations.filter((c) => getConvStatus(c.id) === "aguardando").length,
-    atendendo: activeConversations.filter((c) => getConvStatus(c.id) === "atendendo").length,
-    finalizado: activeConversations.filter((c) => getConvStatus(c.id) === "finalizado").length,
+    aguardando: conversations.filter((c) => c.status === "aguardando").length,
+    atendendo: conversations.filter((c) => c.status === "atendendo").length,
+    finalizado: conversations.filter((c) => c.status === "finalizado").length,
   };
 
-  const toggleConvTag = (tag: string) => {
-    const current = convTags[selected] || [];
-    const updated = current.includes(tag)
-      ? current.filter((t) => t !== tag)
-      : [...current, tag];
-    setConvTags({ ...convTags, [selected]: updated });
-  };
+  const selectedConv = conversations.find((c) => c.id === selected);
 
-  const selectedConv = activeConversations.find((c) => c.id === selected);
+  const getInitials = (name: string) =>
+    name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 
-  const addSystemMessage = (text: string) => {
-    const now = new Date();
-    const time = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
-    setChatMessages((prev) => [
-      ...prev,
-      { id: `sys-${Date.now()}`, text, time, sent: false, read: true, isSystem: true },
-    ]);
+  const formatTime = (iso: string) => {
+    const d = new Date(iso);
+    return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
   };
 
   const startRecording = () => {
@@ -193,15 +173,16 @@ export default function ConversasPage() {
     return `${m}:${sec.toString().padStart(2, "0")}`;
   };
 
-  const sendMessage = () => {
-    if (!messageText.trim()) return;
-    const now = new Date();
-    const time = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
-    setChatMessages((prev) => [
-      ...prev,
-      { id: Date.now().toString(), text: messageText, time, sent: true, read: false },
-    ]);
-    setMessageText("");
+  const sendMessage = async () => {
+    if (!messageText.trim() || !selected) return;
+    try {
+      const msg = await apiSendMessage(selected, { text: messageText });
+      setChatMessages((prev) => [...prev, msg]);
+      setMessageText("");
+      fetchConversations(); // refresh last_message
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Erro ao enviar");
+    }
   };
 
   const insertEmoji = (emoji: string) => {
@@ -209,18 +190,19 @@ export default function ConversasPage() {
     setShowEmoji(false);
   };
 
-  const handleTransfer = () => {
+  const handleTransfer = async () => {
     if (!transferUser) {
       toast.error("Selecione um usuário");
       return;
     }
-    addSystemMessage(`Conversa transferida para ${transferUser} (${transferDept})`);
-    toast.success(`Conversa transferida para ${transferUser}`);
-    setRemovedConvIds([...removedConvIds, selected]);
-    setShowTransferDialog(false);
-    // Select next available conversation
-    const remaining = activeConversations.filter(c => c.id !== selected);
-    if (remaining.length > 0) setSelected(remaining[0].id);
+    try {
+      await apiUpdateConversation(selected, { attendant_id: transferUser });
+      toast.success("Conversa transferida");
+      setShowTransferDialog(false);
+      fetchConversations();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Erro ao transferir");
+    }
   };
 
   return (
@@ -262,15 +244,7 @@ export default function ConversasPage() {
                     className="flex-1 bg-muted rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
                   >
                     <option value="">Todos atendentes</option>
-                    {availableAttendants.map(a => <option key={a} value={a}>{a}</option>)}
-                  </select>
-                  <select
-                    value={filterTag || ""}
-                    onChange={(e) => setFilterTag(e.target.value || null)}
-                    className="flex-1 bg-muted rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-                  >
-                    <option value="">Todas tags</option>
-                    {getTagStore().map(t => <option key={t.name} value={t.name}>{t.name}</option>)}
+                    {apiUsers.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
                   </select>
                 </div>
               </div>
@@ -314,63 +288,39 @@ export default function ConversasPage() {
               >
                 <div className="relative flex-shrink-0 mt-0.5">
                   <div className="w-10 h-10 rounded-full gradient-green flex items-center justify-center text-xs font-bold text-primary-foreground">
-                    {conv.avatar}
+                    {getInitials(conv.contact_name)}
                   </div>
-                  {conv.status === "online" && (
-                    <div className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-primary border-2 border-card" />
-                  )}
                 </div>
                 <div className="flex-1 min-w-0 flex gap-0">
-                  {/* Left: client info + tags */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-sm font-semibold text-foreground truncate">{conv.name}</span>
+                      <span className="text-sm font-semibold text-foreground truncate">{conv.contact_name}</span>
                     </div>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      {conv.status === "online" && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
-                      <p className="text-xs text-muted-foreground truncate">{conv.lastMessage}</p>
-                    </div>
-                    {(convTags[conv.id] || []).length > 0 && (
-                      <div className="flex gap-1 mt-1.5 flex-wrap">
-                        {(convTags[conv.id] || []).map((tag) => (
-                          <span
-                            key={tag}
-                            className="text-[10px] font-medium px-1.5 py-0.5 rounded text-white"
-                            style={{ backgroundColor: getTagColor(tag) }}
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">{conv.last_message || "Sem mensagens"}</p>
                   </div>
-                  {/* Right: time + attendant + connection */}
-                  <div className="flex flex-col items-end flex-shrink-0 pl-3 ml-2 gap-1 min-w-[170px]">
+                  <div className="flex flex-col items-end flex-shrink-0 pl-3 ml-2 gap-1 min-w-[100px]">
                     <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
                       <Clock className="w-3 h-3" />
-                      <span>{conv.time}</span>
-                      {conv.unread > 0 && (
+                      <span>{formatTime(conv.updated_at)}</span>
+                      {conv.unread_count > 0 && (
                         <span className="w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center ml-1">
-                          {conv.unread}
+                          {conv.unread_count}
                         </span>
                       )}
                     </div>
-                    {conv.attendant && (
+                    {conv.attendant_name && (
                       <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                         <User className="w-3 h-3 text-accent-foreground" />
-                        <span className="truncate max-w-[150px]">{conv.attendant}{conv.department ? ` - ${conv.department}` : ""}</span>
-                      </div>
-                    )}
-                    {conv.connection && (
-                      <div className="flex items-center gap-1 text-[11px] text-primary">
-                        <MessageCircle className="w-3 h-3" />
-                        <span className="truncate max-w-[150px]">{conv.connection}</span>
+                        <span className="truncate max-w-[90px]">{conv.attendant_name}</span>
                       </div>
                     )}
                   </div>
                 </div>
               </button>
             ))}
+            {filtered.length === 0 && (
+              <div className="py-12 text-center text-muted-foreground text-sm">Nenhuma conversa encontrada</div>
+            )}
           </div>
         </div>
 
@@ -382,19 +332,19 @@ export default function ConversasPage() {
               <div className="flex items-center gap-3 min-w-0">
                 <button onClick={() => setShowClientPanel(true)} className="flex-shrink-0">
                   <div className="w-10 h-10 rounded-full gradient-green flex items-center justify-center text-xs font-bold text-primary-foreground">
-                    {selectedConv?.avatar || "?"}
+                    {selectedConv ? getInitials(selectedConv.contact_name) : "?"}
                   </div>
                 </button>
                 <button onClick={() => setShowClientPanel(true)} className="text-left hover:opacity-80 transition-opacity min-w-0">
-                  <p className="text-sm font-semibold text-foreground truncate">{selectedConv?.name || "Selecione"}</p>
+                  <p className="text-sm font-semibold text-foreground truncate">{selectedConv?.contact_name || "Selecione"}</p>
                   <p className="text-xs text-muted-foreground truncate">
-                    {selectedConv?.phone}
-                    {selectedConv && <span className="text-muted-foreground/60"> • {selectedConv.attendant || "Atendente"}</span>}
+                    {selectedConv?.contact_phone}
+                    {selectedConv && <span className="text-muted-foreground/60"> • {selectedConv.attendant_name || "Atendente"}</span>}
                   </p>
                 </button>
 
                 {selectedConv && (() => {
-                  const s = getConvStatus(selected);
+                  const s = selectedConv.status;
                   const statusConfig = {
                     atendendo: { label: "Em Atendimento", classes: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" },
                     aguardando: { label: "Aguardando", classes: "bg-amber-500/10 text-amber-600 border-amber-500/20" },
@@ -414,7 +364,7 @@ export default function ConversasPage() {
                 <button
                   onClick={() => {
                     if (selectedConv) {
-                      const num = selectedConv.phone.replace(/\D/g, "");
+                      const num = selectedConv.contact_phone.replace(/\D/g, "");
                       window.open(`https://wa.me/55${num}`, "_blank");
                     }
                   }}
@@ -426,9 +376,7 @@ export default function ConversasPage() {
                 {/* Transfer */}
                 <button
                   onClick={() => {
-                    setTransferConnection(connections[0]);
-                    setTransferDept(departments[0]);
-                    setTransferUser(departmentUsers[departments[0]]?.[0] || "");
+                    setTransferUser("");
                     setShowTransferDialog(true);
                   }}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors"
@@ -439,7 +387,7 @@ export default function ConversasPage() {
 
                 {/* Status dropdown button */}
                 <button
-                  onClick={() => { setShowStatusMenu(!showStatusMenu); setShowTagMenu(false); }}
+                  onClick={() => { setShowStatusMenu(!showStatusMenu); }}
                   className={cn(
                     "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors",
                     showStatusMenu
@@ -453,10 +401,12 @@ export default function ConversasPage() {
 
                 {/* Finalizar */}
                 <button
-                  onClick={() => {
-                    setConvStatuses({ ...convStatuses, [selected]: "finalizado" });
-                    addSystemMessage("Atendimento finalizado");
-                    toast.success("Conversa finalizada");
+                  onClick={async () => {
+                    try {
+                      await apiUpdateConversation(selected, { status: "finalizado" });
+                      toast.success("Conversa finalizada");
+                      fetchConversations();
+                    } catch { toast.error("Erro ao finalizar"); }
                   }}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground text-sm font-medium hover:bg-destructive/90 transition-colors"
                 >
@@ -476,18 +426,16 @@ export default function ConversasPage() {
                         { value: "aguardando" as ConversationStatus, label: "Aguardando", color: "bg-amber-500" },
                         { value: "finalizado" as ConversationStatus, label: "Finalizado", color: "bg-muted-foreground" },
                       ]).map((status) => {
-                        const currentStatus = convStatuses[selected] || selectedConv?.atendimentoStatus;
-                        const isActive = currentStatus === status.value;
+                        const isActive = selectedConv?.status === status.value;
                         return (
                           <button
                             key={status.value}
-                            onClick={() => {
-                              const prev = convStatuses[selected] || selectedConv?.atendimentoStatus || "aguardando";
-                              setConvStatuses({ ...convStatuses, [selected]: status.value });
-                              setShowStatusMenu(false);
-                              if (prev !== status.value) {
-                                addSystemMessage(`Status alterado para "${status.label}"`);
-                              }
+                            onClick={async () => {
+                              try {
+                                await apiUpdateConversation(selected, { status: status.value });
+                                setShowStatusMenu(false);
+                                fetchConversations();
+                              } catch { toast.error("Erro ao alterar status"); }
                             }}
                             className={cn(
                               "w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors",
@@ -505,30 +453,15 @@ export default function ConversasPage() {
                 )}
               </div>
             </div>
-
-            {/* Tags row */}
-            {(convTags[selected] || []).length > 0 && (
-              <div className="px-5 pb-2.5 flex items-center gap-1.5">
-                {(convTags[selected] || []).map((tag) => (
-                  <span
-                    key={tag}
-                    className="text-[11px] font-medium px-2 py-0.5 rounded-full text-white"
-                    style={{ backgroundColor: getTagColor(tag) }}
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            )}
           </div>
 
           <div className="flex-1 overflow-y-auto p-5 space-y-3 bg-muted/30">
             {chatMessages.map((msg) => {
-              if (msg.isSystem) {
+              if (msg.is_system) {
                 return (
                   <div key={msg.id} className="flex justify-center">
                     <span className="text-[11px] text-muted-foreground bg-muted/80 px-3 py-1 rounded-full font-medium">
-                      {msg.text} • {msg.time}
+                      {msg.text} • {formatTime(msg.created_at)}
                     </span>
                   </div>
                 );
@@ -543,13 +476,16 @@ export default function ConversasPage() {
                   )}>
                     <p>{msg.text}</p>
                     <div className={cn("flex items-center justify-end gap-1 mt-1", msg.sent ? "text-primary-foreground/70" : "text-muted-foreground")}>
-                      <span className="text-[10px]">{msg.time}</span>
+                      <span className="text-[10px]">{formatTime(msg.created_at)}</span>
                       {msg.sent && (msg.read ? <CheckCheck className="w-3 h-3" /> : <Check className="w-3 h-3" />)}
                     </div>
                   </div>
                 </div>
               );
             })}
+            {chatMessages.length === 0 && (
+              <div className="flex justify-center pt-12 text-muted-foreground text-sm">Nenhuma mensagem ainda</div>
+            )}
           </div>
 
           <div className="px-5 py-3 border-t border-border relative">
@@ -695,9 +631,9 @@ export default function ConversasPage() {
         <ClientDetailPanel
           open={showClientPanel}
           onOpenChange={setShowClientPanel}
-          contact={selectedConv ? { name: selectedConv.name, phone: selectedConv.phone, avatar: selectedConv.avatar } : null}
-          tags={convTags[selected] || []}
-          onToggleTag={toggleConvTag}
+          contact={selectedConv ? { name: selectedConv.contact_name, phone: selectedConv.contact_phone, avatar: getInitials(selectedConv.contact_name) } : null}
+          tags={[]}
+          onToggleTag={() => {}}
         />
       </div>
 
@@ -710,37 +646,14 @@ export default function ConversasPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Conexão</label>
-              <select
-                value={transferConnection}
-                onChange={(e) => setTransferConnection(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {connections.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Departamento</label>
-              <select
-                value={transferDept}
-                onChange={(e) => {
-                  setTransferDept(e.target.value);
-                  setTransferUser(departmentUsers[e.target.value]?.[0] || "");
-                }}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {departments.map(d => <option key={d} value={d}>{d}</option>)}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Usuário</label>
+              <label className="text-sm font-medium text-foreground">Transferir para</label>
               <select
                 value={transferUser}
                 onChange={(e) => setTransferUser(e.target.value)}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <option value="">Selecione um usuário</option>
-                {(departmentUsers[transferDept] || []).map(u => <option key={u} value={u}>{u}</option>)}
+                {apiUsers.map(u => <option key={u.id} value={u.id}>{u.name} ({u.role === "admin" ? "Admin" : "Atendente"})</option>)}
               </select>
             </div>
           </div>

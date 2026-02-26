@@ -18,13 +18,23 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email.trim() || !password.trim()) {
+      toast.error("Preencha e-mail e senha");
+      return;
+    }
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const { loginApi } = await import("@/lib/api");
+      await loginApi(email, password);
       toast.success("Login realizado com sucesso!");
       router.replace("/conversas");
-    }, 400);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro ao fazer login";
+      toast.error(msg);
+      setLoading(false);
+    }
   };
 
   return (
