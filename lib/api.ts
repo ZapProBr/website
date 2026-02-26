@@ -261,6 +261,8 @@ export interface MessageItem {
   delivered: boolean;
   is_system: boolean;
   message_type: string;
+  has_media: boolean;
+  media_mimetype: string | null;
   created_at: string;
 }
 
@@ -271,6 +273,11 @@ export async function listMessages(conversationId: string, params?: { skip?: num
   const q = qs.toString();
   const res = await api<{ messages: MessageItem[]; total: number }>(`/conversations/${conversationId}/messages${q ? `?${q}` : ""}`);
   return res.messages;
+}
+
+export function getMediaUrl(conversationId: string, messageId: string): string {
+  const token = getAccessToken();
+  return `${BASE}/api/conversations/${conversationId}/messages/${messageId}/media${token ? `?token=${encodeURIComponent(token)}` : ""}`;
 }
 
 export function sendMessage(conversationId: string, data: { text: string; message_type?: string }): Promise<MessageItem> {

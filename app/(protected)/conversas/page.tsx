@@ -25,6 +25,7 @@ import {
   listUsers as apiListUsers,
   listTags as apiListTags,
   sendTyping as apiSendTyping,
+  getMediaUrl,
   type ConversationItem,
   type MessageItem,
   type User as ApiUser,
@@ -211,6 +212,8 @@ export default function ConversasPage() {
       delivered: false,
       is_system: false,
       message_type: "text",
+      has_media: false,
+      media_mimetype: null,
       created_at: new Date().toISOString(),
     };
     setChatMessages((prev) => [...prev, optimisticMsg]);
@@ -553,13 +556,55 @@ export default function ConversasPage() {
               return (
                 <div key={msg.id} className={cn("flex", msg.sent ? "justify-end" : "justify-start")}>
                   <div className={cn(
-                    "max-w-[65%] px-4 py-2.5 rounded-2xl text-sm",
+                    "max-w-[65%] rounded-2xl text-sm overflow-hidden",
                     msg.sent
                       ? "bg-primary text-primary-foreground rounded-br-md"
                       : "bg-muted text-foreground rounded-bl-md"
                   )}>
-                    <p>{msg.text}</p>
-                    <div className={cn("flex items-center justify-end gap-1 mt-1", msg.sent ? "text-primary-foreground/70" : "text-muted-foreground")}>
+                    {/* Media content */}
+                    {msg.has_media && msg.media_mimetype && selected && (
+                      <>
+                        {msg.media_mimetype.startsWith("image/") && (
+                          <img
+                            src={getMediaUrl(selected, msg.id)}
+                            alt="Imagem"
+                            className="w-full max-h-80 object-cover cursor-pointer"
+                            loading="lazy"
+                            onClick={() => window.open(getMediaUrl(selected, msg.id), "_blank")}
+                          />
+                        )}
+                        {msg.media_mimetype.startsWith("audio/") && (
+                          <div className="px-3 pt-2">
+                            <audio controls className="w-full max-w-[280px]" preload="none">
+                              <source src={getMediaUrl(selected, msg.id)} type={msg.media_mimetype} />
+                            </audio>
+                          </div>
+                        )}
+                        {msg.media_mimetype.startsWith("video/") && (
+                          <video controls className="w-full max-h-80" preload="none">
+                            <source src={getMediaUrl(selected, msg.id)} type={msg.media_mimetype} />
+                          </video>
+                        )}
+                        {!msg.media_mimetype.startsWith("image/") && !msg.media_mimetype.startsWith("audio/") && !msg.media_mimetype.startsWith("video/") && (
+                          <div className="px-4 pt-2">
+                            <a
+                              href={getMediaUrl(selected, msg.id)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={cn("underline text-xs", msg.sent ? "text-primary-foreground" : "text-foreground")}
+                            >
+                              📎 Baixar arquivo
+                            </a>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {/* Text content — hide placeholder text like [Image], [Audio] when media exists */}
+                    {msg.text && !(msg.has_media && /^\[(image|audio|video|document|sticker)\]$/i.test(msg.text)) && (
+                      <p className="px-4 py-2.5">{msg.text}</p>
+                    )}
+                    {!msg.text && !msg.has_media && <p className="px-4 py-2.5">&nbsp;</p>}
+                    <div className={cn("flex items-center justify-end gap-1 px-4 pb-2", msg.sent ? "text-primary-foreground/70" : "text-muted-foreground")}>
                       <span className="text-[10px]">{formatTime(msg.created_at)}</span>
                       {msg.sent && (
                         msg.read
