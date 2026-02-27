@@ -430,3 +430,64 @@ export function offerCall(instanceName: string, number: string, isVideo = false)
     body: JSON.stringify({ number, callDuration: 30, isVideo }),
   });
 }
+
+// ── Broadcasts (Disparos) ──────────────────────────────
+export interface BroadcastTag {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export interface BroadcastItem {
+  id: string;
+  title: string;
+  connection_id: string;
+  message_type: string;
+  content: string | null;
+  has_media: boolean;
+  media_mimetype: string | null;
+  media_filename: string | null;
+  target_type: string;
+  status: string;
+  total_recipients: number;
+  sent_count: number;
+  failed_count: number;
+  tags: BroadcastTag[];
+  created_at: string;
+  updated_at: string;
+}
+
+export async function listBroadcasts(params?: { skip?: number; limit?: number }): Promise<{ broadcasts: BroadcastItem[]; total: number }> {
+  const qs = new URLSearchParams();
+  if (params?.skip) qs.set("skip", String(params.skip));
+  if (params?.limit) qs.set("limit", String(params.limit));
+  const q = qs.toString();
+  return api<{ broadcasts: BroadcastItem[]; total: number }>(`/api/broadcasts${q ? `?${q}` : ""}`);
+}
+
+export function createBroadcast(data: {
+  title: string;
+  connection_id: string;
+  message_type?: string;
+  content?: string;
+  media_base64?: string;
+  media_mimetype?: string;
+  media_filename?: string;
+  target_type?: string;
+  tag_ids?: string[];
+  contact_ids?: string[];
+}): Promise<BroadcastItem> {
+  return api<BroadcastItem>("/api/broadcasts", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function getBroadcast(id: string): Promise<BroadcastItem> {
+  return api<BroadcastItem>(`/api/broadcasts/${id}`);
+}
+
+export function sendBroadcast(id: string): Promise<BroadcastItem> {
+  return api<BroadcastItem>(`/api/broadcasts/${id}/send`, { method: "POST" });
+}
+
+export function deleteBroadcast(id: string): Promise<void> {
+  return api<void>(`/api/broadcasts/${id}`, { method: "DELETE" });
+}
