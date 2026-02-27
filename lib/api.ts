@@ -527,3 +527,42 @@ export function updateBroadcast(
 ): Promise<BroadcastItem> {
   return api<BroadcastItem>(`/api/broadcasts/${id}`, { method: "PUT", body: JSON.stringify(data) });
 }
+
+// ── Auto-Reply (Recepção Automática) ───────────────────
+export interface AutoReplyConfig {
+  id: string;
+  instance_name: string;
+  active: boolean;
+  response_type: "text" | "audio" | "both";
+  welcome_message: string | null;
+  audio_base64: string | null;
+  audio_mimetype: string | null;
+  audio_filename: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export function listAutoReplyConfigs(): Promise<AutoReplyConfig[]> {
+  return api<AutoReplyConfig[]>("/api/auto-reply");
+}
+
+export function getAutoReplyConfig(instanceName: string): Promise<AutoReplyConfig> {
+  return api<AutoReplyConfig>(`/api/auto-reply/${encodeURIComponent(instanceName)}`);
+}
+
+export function upsertAutoReplyConfig(
+  instanceName: string,
+  data: {
+    active: boolean;
+    response_type: "text" | "audio" | "both";
+    welcome_message?: string | null;
+    audio_base64?: string | null;
+    audio_mimetype?: string | null;
+    audio_filename?: string | null;
+  },
+): Promise<AutoReplyConfig> {
+  return api<AutoReplyConfig>(`/api/auto-reply/${encodeURIComponent(instanceName)}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
