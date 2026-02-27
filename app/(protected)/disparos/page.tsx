@@ -24,6 +24,17 @@ import {
 
 type ContentType = "text" | "audio" | "image" | "document";
 
+interface ContentItemDraft {
+  id: string; // local uuid for React key
+  message_type: ContentType;
+  content: string;
+  mediaFile: File | null;
+}
+
+function newDraftItem(): ContentItemDraft {
+  return { id: crypto.randomUUID(), message_type: "text", content: "", mediaFile: null };
+}
+
 const statusConfig: Record<string, { icon: typeof CheckCircle2; label: string; class: string }> = {
   rascunho: { icon: AlertCircle, label: "Rascunho", class: "text-muted-foreground bg-muted" },
   enviando: { icon: Loader2, label: "Enviando…", class: "text-chart-4 bg-chart-4/10" },
@@ -43,12 +54,30 @@ function fileToBase64(file: File): Promise<string> {
     const reader = new FileReader();
     reader.onload = () => {
       const result = reader.result as string;
-      // strip "data:...;base64," prefix
       resolve(result.split(",")[1]);
     };
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+
+function getAcceptMime(type: ContentType) {
+  switch (type) {
+    case "audio": return "audio/*";
+    case "image": return "image/*";
+    case "document": return ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip";
+    default: return "*/*";
+  }
+}
+
+function typeLabel(t: string) {
+  switch (t) {
+    case "text": return "Texto";
+    case "audio": return "Áudio";
+    case "image": return "Imagem";
+    case "document": return "Documento";
+    default: return t;
+  }
 }
 
 export default function DisparosPage() {
@@ -63,15 +92,12 @@ export default function DisparosPage() {
   const [showModal, setShowModal] = useState(false);
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState("");
-  const [contentType, setContentType] = useState<ContentType>("text");
-  const [message, setMessage] = useState("");
+  const [items, setItems] = useState<ContentItemDraft[]>([newDraftItem()]);
   const [targetType, setTargetType] = useState<"todos" | "tags" | "manual">("todos");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [selectedInstance, setSelectedInstance] = useState("");
-  const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [contactSearch, setContactSearch] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Delete dialog ───────────────────────────────────
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -93,7 +119,6 @@ export default function DisparosPage() {
     (async () => {
       setLoading(true);
 
-      // Load each resource independently so a failure in one doesn't block the others
       try {
         const instRes = await listInstances();
         const open = instRes.filter((i) => i.status === "open");
@@ -137,6 +162,22 @@ export default function DisparosPage() {
     };
   }, [broadcasts, loadBroadcasts]);
 
+  // ── Item helpers ────────────────────────────────────
+  const updateItem = (id: string, patch: Partial<ContentItemDraft>) => {
+    setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)));
+  };
+
+  const removeItem = (id: string) => {
+    setItems((prev) => {
+      const next = prev.filter((it) => it.id !== id);
+      return next.length === 0 ? [newDraftItem()] : next;
+    });
+  };
+
+  const addItem = () => {
+    setItems((prev) => [...prev, newDraftItem()]);
+  };
+
   // ── Helpers ─────────────────────────────────────────
   const toggleTag = (id: string) =>
     setSelectedTags((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]));
@@ -146,12 +187,10 @@ export default function DisparosPage() {
 
   const resetForm = () => {
     setTitle("");
-    setContentType("text");
-    setMessage("");
+    setItems([newDraftItem()]);
     setTargetType("todos");
     setSelectedTags([]);
     setSelectedContacts([]);
-    setMediaFile(null);
     setContactSearch("");
   };
 
@@ -168,14 +207,20 @@ export default function DisparosPage() {
       toast.error("Selecione uma conexão");
       return;
     }
-    if (contentType === "text" && !message.trim()) {
-      toast.error("Digite a mensagem");
-      return;
+
+    // Validate items
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (it.message_type === "text" && !it.content.trim()) {
+        toast.error(`Item ${i + 1}: digite a mensagem`);
+        return;
+      }
+      if (it.message_type !== "text" && !it.mediaFile) {
+        toast.error(`Item ${i + 1}: selecione um arquivo`);
+        return;
+      }
     }
-    if (contentType !== "text" && !mediaFile) {
-      toast.error("Selecione um arquivo");
-      return;
-    }
+
     if (targetType === "tags" && selectedTags.length === 0) {
       toast.error("Selecione pelo menos uma tag");
       return;
@@ -187,24 +232,30 @@ export default function DisparosPage() {
 
     setCreating(true);
     try {
-      let media_base64: string | undefined;
-      let media_mimetype: string | undefined;
-      let media_filename: string | undefined;
-
-      if (mediaFile) {
-        media_base64 = await fileToBase64(mediaFile);
-        media_mimetype = mediaFile.type;
-        media_filename = mediaFile.name;
-      }
+      const builtItems = await Promise.all(
+        items.map(async (it) => {
+          let media_base64: string | undefined;
+          let media_mimetype: string | undefined;
+          let media_filename: string | undefined;
+          if (it.mediaFile) {
+            media_base64 = await fileToBase64(it.mediaFile);
+            media_mimetype = it.mediaFile.type;
+            media_filename = it.mediaFile.name;
+          }
+          return {
+            message_type: it.message_type,
+            content: it.content || undefined,
+            media_base64,
+            media_mimetype,
+            media_filename,
+          };
+        })
+      );
 
       const b = await createBroadcast({
         title: title.trim(),
         connection_id: selectedInstance,
-        message_type: contentType,
-        content: message || undefined,
-        media_base64,
-        media_mimetype,
-        media_filename,
+        items: builtItems,
         target_type: targetType,
         tag_ids: targetType === "tags" ? selectedTags : undefined,
         contact_ids: targetType === "manual" ? selectedContacts : undefined,
@@ -254,15 +305,6 @@ export default function DisparosPage() {
       )
     : contacts;
 
-  const getAcceptMime = () => {
-    switch (contentType) {
-      case "audio": return "audio/*";
-      case "image": return "image/*";
-      case "document": return ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip";
-      default: return "*/*";
-    }
-  };
-
   return (
     <AppLayout>
       <div className="space-y-6 animate-fade-in">
@@ -310,7 +352,7 @@ export default function DisparosPage() {
               <thead>
                 <tr className="border-b border-border bg-muted/50">
                   <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">Campanha</th>
-                  <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">Tipo</th>
+                  <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">Itens</th>
                   <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">Progresso</th>
                   <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">Status</th>
                   <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">Data</th>
@@ -321,10 +363,14 @@ export default function DisparosPage() {
                 {broadcasts.map((d) => {
                   const st = statusConfig[d.status] || statusConfig.rascunho;
                   const StIcon = st.icon;
-                  const typeLabel =
-                    d.message_type === "text" ? "Texto" :
-                    d.message_type === "audio" ? "Áudio" :
-                    d.message_type === "image" ? "Imagem" : "Documento";
+
+                  const itemsSummary =
+                    d.items.length === 0
+                      ? "-"
+                      : d.items.length === 1
+                        ? typeLabel(d.items[0].message_type)
+                        : `${d.items.length} itens`;
+
                   const progress = d.total_recipients > 0
                     ? `${d.sent_count + d.failed_count}/${d.total_recipients}`
                     : "-";
@@ -342,7 +388,7 @@ export default function DisparosPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-5 py-4 text-sm text-muted-foreground">{typeLabel}</td>
+                      <td className="px-5 py-4 text-sm text-muted-foreground">{itemsSummary}</td>
                       <td className="px-5 py-4">
                         <span className="text-sm font-medium text-foreground">{progress}</span>
                         {d.failed_count > 0 && (
@@ -400,7 +446,9 @@ export default function DisparosPage() {
           <DialogHeader>
             <DialogTitle>Novo Disparo</DialogTitle>
             <DialogDescription>
-              Crie e envie uma campanha de disparo de mensagens.
+              Crie e envie uma campanha de disparo de mensagens. Você pode adicionar
+              vários itens de conteúdo (texto, áudio, imagem, documento) — cada um será
+              enviado como uma mensagem separada por contato, com intervalo entre si.
             </DialogDescription>
           </DialogHeader>
 
@@ -463,97 +511,33 @@ export default function DisparosPage() {
               />
             </div>
 
-            {/* Content type */}
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">Tipo de conteúdo</label>
-              <div className="flex gap-2 flex-wrap">
-                {contentOptions.map((opt) => {
-                  const isActive = contentType === opt.value;
-                  return (
-                    <button
-                      key={opt.value}
-                      onClick={() => {
-                        setContentType(opt.value);
-                        setMediaFile(null);
-                      }}
-                      className={cn(
-                        "flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-all",
-                        isActive
-                          ? "border-primary bg-primary/5 text-primary"
-                          : "border-border text-muted-foreground hover:bg-muted"
-                      )}
-                    >
-                      <opt.icon className="w-4 h-4" />
-                      {opt.label}
-                    </button>
-                  );
-                })}
+            {/* ── Content items ────────────────────────── */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-foreground">
+                  Conteúdo ({items.length} {items.length === 1 ? "item" : "itens"})
+                </label>
+                <button
+                  type="button"
+                  onClick={addItem}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Adicionar item
+                </button>
               </div>
-            </div>
 
-            {/* Text content (always available for caption with media) */}
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">
-                {contentType === "text" ? "Mensagem" : "Legenda (opcional)"}
-              </label>
-              <textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder={
-                  contentType === "text"
-                    ? "Digite a mensagem..."
-                    : "Legenda para a mídia (opcional)..."
-                }
-                rows={3}
-                className="w-full bg-muted/50 border border-border rounded-lg px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all resize-none"
-              />
-            </div>
-
-            {/* File upload (audio, image, document) */}
-            {contentType !== "text" && (
-              <div className="space-y-1.5">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept={getAcceptMime()}
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) setMediaFile(f);
-                  }}
+              {items.map((item, idx) => (
+                <ContentItemEditor
+                  key={item.id}
+                  item={item}
+                  index={idx}
+                  canRemove={items.length > 1}
+                  onUpdate={(patch) => updateItem(item.id, patch)}
+                  onRemove={() => removeItem(item.id)}
                 />
-                {mediaFile ? (
-                  <div className="flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/30">
-                    {contentType === "audio" && <Mic className="w-5 h-5 text-primary" />}
-                    {contentType === "image" && <Image className="w-5 h-5 text-primary" />}
-                    {contentType === "document" && <FileText className="w-5 h-5 text-primary" />}
-                    <span className="text-sm text-foreground truncate flex-1">
-                      {mediaFile.name}
-                    </span>
-                    <button
-                      onClick={() => setMediaFile(null)}
-                      className="text-muted-foreground hover:text-destructive"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full flex items-center gap-2 py-4 border-2 border-dashed border-border rounded-lg hover:border-primary/30 hover:bg-primary/5 transition-all justify-center"
-                  >
-                    {contentType === "audio" && <Mic className="w-5 h-5 text-muted-foreground" />}
-                    {contentType === "image" && <Image className="w-5 h-5 text-muted-foreground" />}
-                    {contentType === "document" && <FileText className="w-5 h-5 text-muted-foreground" />}
-                    <span className="text-sm text-muted-foreground">
-                      {contentType === "audio" && "Selecionar áudio (MP3, OGG, WAV)"}
-                      {contentType === "image" && "Selecionar imagem (JPG, PNG, WEBP)"}
-                      {contentType === "document" && "Selecionar documento (PDF, DOC, XLS…)"}
-                    </span>
-                  </button>
-                )}
-              </div>
-            )}
+              ))}
+            </div>
 
             {/* Recipients */}
             <div className="space-y-2">
@@ -762,5 +746,127 @@ export default function DisparosPage() {
         </AlertDialogContent>
       </AlertDialog>
     </AppLayout>
+  );
+}
+
+/* ── Sub-component: single content item editor ──────── */
+function ContentItemEditor({
+  item,
+  index,
+  canRemove,
+  onUpdate,
+  onRemove,
+}: {
+  item: ContentItemDraft;
+  index: number;
+  canRemove: boolean;
+  onUpdate: (patch: Partial<ContentItemDraft>) => void;
+  onRemove: () => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <div className="border border-border rounded-xl p-3 space-y-2.5 bg-muted/20">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          Item {index + 1}
+        </span>
+        {canRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+            title="Remover item"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
+      {/* Type selector */}
+      <div className="flex gap-1.5 flex-wrap">
+        {contentOptions.map((opt) => {
+          const isActive = item.message_type === opt.value;
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => onUpdate({ message_type: opt.value, mediaFile: null })}
+              className={cn(
+                "flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all",
+                isActive
+                  ? "border-primary bg-primary/5 text-primary"
+                  : "border-border text-muted-foreground hover:bg-muted"
+              )}
+            >
+              <opt.icon className="w-3.5 h-3.5" />
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Text / caption */}
+      <textarea
+        value={item.content}
+        onChange={(e) => onUpdate({ content: e.target.value })}
+        placeholder={
+          item.message_type === "text"
+            ? "Digite a mensagem…"
+            : "Legenda para a mídia (opcional)…"
+        }
+        rows={2}
+        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all resize-none"
+      />
+
+      {/* File upload */}
+      {item.message_type !== "text" && (
+        <>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={getAcceptMime(item.message_type)}
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) onUpdate({ mediaFile: f });
+            }}
+          />
+          {item.mediaFile ? (
+            <div className="flex items-center gap-3 p-2.5 rounded-lg border border-border bg-background">
+              {item.message_type === "audio" && <Mic className="w-4 h-4 text-primary flex-shrink-0" />}
+              {item.message_type === "image" && <Image className="w-4 h-4 text-primary flex-shrink-0" />}
+              {item.message_type === "document" && <FileText className="w-4 h-4 text-primary flex-shrink-0" />}
+              <span className="text-xs text-foreground truncate flex-1">
+                {item.mediaFile.name}
+              </span>
+              <button
+                type="button"
+                onClick={() => onUpdate({ mediaFile: null })}
+                className="text-muted-foreground hover:text-destructive flex-shrink-0"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full flex items-center gap-2 py-3 border-2 border-dashed border-border rounded-lg hover:border-primary/30 hover:bg-primary/5 transition-all justify-center"
+            >
+              {item.message_type === "audio" && <Mic className="w-4 h-4 text-muted-foreground" />}
+              {item.message_type === "image" && <Image className="w-4 h-4 text-muted-foreground" />}
+              {item.message_type === "document" && <FileText className="w-4 h-4 text-muted-foreground" />}
+              <span className="text-xs text-muted-foreground">
+                {item.message_type === "audio" && "Selecionar áudio (MP3, OGG, WAV)"}
+                {item.message_type === "image" && "Selecionar imagem (JPG, PNG, WEBP)"}
+                {item.message_type === "document" && "Selecionar documento (PDF, DOC, XLS…)"}
+              </span>
+            </button>
+          )}
+        </>
+      )}
+    </div>
   );
 }

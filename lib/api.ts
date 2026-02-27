@@ -438,15 +438,23 @@ export interface BroadcastTag {
   color: string;
 }
 
+export interface BroadcastContentItem {
+  id?: string;
+  position: number;
+  message_type: string;
+  content: string | null;
+  has_media?: boolean;
+  media_mimetype: string | null;
+  media_filename: string | null;
+  // used only when creating
+  media_base64?: string;
+}
+
 export interface BroadcastItem {
   id: string;
   title: string;
   connection_id: string;
-  message_type: string;
-  content: string | null;
-  has_media: boolean;
-  media_mimetype: string | null;
-  media_filename: string | null;
+  items: BroadcastContentItem[];
   target_type: string;
   status: string;
   total_recipients: number;
@@ -468,11 +476,13 @@ export async function listBroadcasts(params?: { skip?: number; limit?: number })
 export function createBroadcast(data: {
   title: string;
   connection_id: string;
-  message_type?: string;
-  content?: string;
-  media_base64?: string;
-  media_mimetype?: string;
-  media_filename?: string;
+  items: {
+    message_type: string;
+    content?: string;
+    media_base64?: string;
+    media_mimetype?: string;
+    media_filename?: string;
+  }[];
   target_type?: string;
   tag_ids?: string[];
   contact_ids?: string[];
