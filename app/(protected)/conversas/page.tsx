@@ -1496,9 +1496,7 @@ export default function ConversasPage() {
                           {formatTime(msg.created_at)}
                         </span>
                         {msg.sent &&
-                          (msg.read ? (
-                            <CheckCheck className="w-3 h-3 text-blue-400" />
-                          ) : msg.delivered ? (
+                          (msg.delivered || msg.read ? (
                             <CheckCheck className="w-3 h-3" />
                           ) : (
                             <Check className="w-3 h-3" />
