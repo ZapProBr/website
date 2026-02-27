@@ -568,15 +568,17 @@ export default function ConversasPage() {
 
   const parseSharedContact = (
     raw: string,
-  ): { name: string; phone: string | null } | null => {
+  ): { name: string; phone: string | null; picUrl: string | null } | null => {
     const text = (raw || "").trim();
+    // Format: [Contato: Name|phone?|picUrl?]
     const match = text.match(
-      /^\[Contato(?:\s*:\s*([^\]|]*?)\s*(?:\|\s*([^\]]+)\s*)?)?\]$/i,
+      /^\[Contato(?:\s*:\s*([^\]|]*?)\s*(?:\|\s*([^\]|]*)\s*(?:\|\s*([^\]]+)\s*)?)?)?\]$/i,
     );
     if (!match) return null;
     const name = (match[1] || "").trim() || "Contato";
     const phone = (match[2] || "").trim() || null;
-    return { name, phone };
+    const picUrl = (match[3] || "").trim() || null;
+    return { name, phone, picUrl };
   };
 
   const saveSharedContact = async (name: string, phone: string) => {
@@ -1110,7 +1112,11 @@ export default function ConversasPage() {
                             </>
                           );
 
-                        if (lower === "[localização]" || lower === "[localizacao]")
+                        if (
+                          lower === "[localização]" ||
+                          lower === "[localizacao]" ||
+                          /^\[localiza[çc][aã]o:-?[\d.]+\|-?[\d.]+/i.test(msg)
+                        )
                           return (
                             <>
                               <span className="text-xs">📍</span> Localização
@@ -1612,8 +1618,23 @@ export default function ConversasPage() {
                             )}
                           >
                             <div className="flex flex-col items-center pt-4 pb-3 px-4 gap-2">
-                              <div className="w-16 h-16 rounded-full bg-muted-foreground/20 flex items-center justify-center">
-                                <span className="text-xl font-bold text-muted-foreground select-none">
+                              <div className="w-16 h-16 rounded-full bg-muted-foreground/20 flex items-center justify-center overflow-hidden">
+                                {sharedContact.picUrl ? (
+                                  <img
+                                    src={sharedContact.picUrl}
+                                    alt={sharedContact.name}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      (e.currentTarget as HTMLImageElement).style.display = "none";
+                                      (e.currentTarget.nextElementSibling as HTMLElement | null)?.style &&
+                                        ((e.currentTarget.nextElementSibling as HTMLElement).style.display = "flex");
+                                    }}
+                                  />
+                                ) : null}
+                                <span
+                                  className="text-xl font-bold text-muted-foreground select-none"
+                                  style={{ display: sharedContact.picUrl ? "none" : "flex" }}
+                                >
                                   {sharedContact.name
                                     .split(" ")
                                     .filter(Boolean)
