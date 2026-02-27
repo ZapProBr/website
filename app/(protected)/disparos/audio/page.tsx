@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { AudioItem, getAudioStore, setAudioStore } from "@/lib/audioStore";
-import { Mic, Plus, Play, Pause, Trash2, Upload, X, Check, CircleStop } from "lucide-react";
+import { Mic, Plus, Trash2, Upload, X, Check, CircleStop } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AudioPlayer } from "@/components/conversas/AudioPlayer";
 
@@ -11,7 +11,6 @@ export default function DisparoAudioPage() {
   const [audios, setAudios] = useState<AudioItem[]>(getAudioStore());
   const [showModal, setShowModal] = useState(false);
   const [newTitle, setNewTitle] = useState("");
-  const [playingId, setPlayingId] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [recordTime, setRecordTime] = useState(0);
@@ -255,34 +254,24 @@ export default function DisparoAudioPage() {
             {audios.map((audio) => (
               <div
                 key={audio.id}
-                className="glass-card rounded-xl p-5 flex items-center gap-4 hover:shadow-md transition-shadow"
+                className="glass-card rounded-xl px-5 py-4 hover:shadow-md transition-shadow"
               >
-                <button
-                  onClick={() => setPlayingId(playingId === audio.id ? null : audio.id)}
-                  className={cn(
-                    "w-10 h-10 rounded-lg flex items-center justify-center transition-colors",
-                    playingId === audio.id ? "bg-primary text-primary-foreground" : "bg-primary/10"
-                  )}
-                >
-                  {playingId === audio.id ? (
-                    <Pause className="w-5 h-5" />
-                  ) : (
-                    <Play className="w-5 h-5 text-primary" />
-                  )}
-                </button>
-                <div className="flex-1">
+                <div className="flex items-center justify-between mb-2">
                   <h3 className="text-sm font-semibold text-foreground">{audio.title}</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {audio.fileName} • {audio.duration}
-                  </p>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground">{audio.createdAt}</span>
+                    <button
+                      onClick={() => removeAudio(audio.id)}
+                      className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-                <span className="text-xs text-muted-foreground">{audio.createdAt}</span>
-                <button
-                  onClick={() => removeAudio(audio.id)}
-                  className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <AudioPlayer
+                  src={`data:${audio.mimetype};base64,${audio.base64}`}
+                  sent={false}
+                />
               </div>
             ))}
           </div>
@@ -378,7 +367,7 @@ export default function DisparoAudioPage() {
                       <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
                       <div className="min-w-0">
                         <p className="text-xs font-medium text-foreground truncate">Áudio pronto para salvar</p>
-                        <p className="text-xs text-muted-foreground truncate">{pendingAudio.fileName} • {pendingAudio.duration}</p>
+                        <p className="text-xs text-muted-foreground">{pendingAudio.duration}</p>
                       </div>
                     </div>
                     {/* Inline preview player */}
