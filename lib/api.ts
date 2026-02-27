@@ -120,6 +120,7 @@ export interface UserMe {
   role: "admin" | "atendente";
   plan: "basic" | "pro" | "premium";
   is_active: boolean;
+  workspace_id?: string;
 }
 
 export function getMe(): Promise<UserMe> {
@@ -135,6 +136,7 @@ export interface User {
   plan: "basic" | "pro" | "premium";
   is_active: boolean;
   created_at: string;
+  workspace_id?: string;
 }
 
 export async function listUsers(): Promise<User[]> {
