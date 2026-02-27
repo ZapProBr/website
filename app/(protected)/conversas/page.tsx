@@ -1538,33 +1538,13 @@ export default function ConversasPage() {
                               )}
                             >
                               {/* Static map thumbnail via OpenStreetMap */}
-                              <div
-                                className={cn(
-                                  "w-full h-28 flex items-center justify-center",
-                                  msg.sent ? "bg-primary/20" : "bg-muted",
-                                )}
-                              >
-                                <div className="flex flex-col items-center gap-1">
-                                  <MapPin
-                                    className={cn(
-                                      "w-8 h-8",
-                                      msg.sent
-                                        ? "text-primary-foreground/80"
-                                        : "text-primary",
-                                    )}
-                                  />
-                                  <span
-                                    className={cn(
-                                      "text-[10px] font-mono",
-                                      msg.sent
-                                        ? "text-primary-foreground/60"
-                                        : "text-muted-foreground",
-                                    )}
-                                  >
-                                    {sharedLocation.lat.toFixed(5)},{" "}
-                                    {sharedLocation.lng.toFixed(5)}
-                                  </span>
-                                </div>
+                              <div className="relative w-full h-32 overflow-hidden bg-muted">
+                                <iframe
+                                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${sharedLocation.lng - 0.005},${sharedLocation.lat - 0.003},${sharedLocation.lng + 0.005},${sharedLocation.lat + 0.003}&layer=mapnik&marker=${sharedLocation.lat},${sharedLocation.lng}`}
+                                  className="w-full h-full border-0 pointer-events-none"
+                                  loading="lazy"
+                                  title="Localização"
+                                />
                               </div>
                               <div className="px-3 pt-2 pb-1">
                                 <p
