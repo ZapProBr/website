@@ -462,6 +462,7 @@ export interface BroadcastItem {
   failed_count: number;
   tags: BroadcastTag[];
   contact_ids: string[];
+  scheduled_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -526,6 +527,17 @@ export function updateBroadcast(
   },
 ): Promise<BroadcastItem> {
   return api<BroadcastItem>(`/api/broadcasts/${id}`, { method: "PUT", body: JSON.stringify(data) });
+}
+
+export function scheduleBroadcast(id: string, scheduledAt: string): Promise<BroadcastItem> {
+  return api<BroadcastItem>(`/api/broadcasts/${id}/schedule`, {
+    method: "POST",
+    body: JSON.stringify({ scheduled_at: scheduledAt }),
+  });
+}
+
+export function unscheduleBroadcast(id: string): Promise<BroadcastItem> {
+  return api<BroadcastItem>(`/api/broadcasts/${id}/unschedule`, { method: "POST" });
 }
 
 // ── Auto-Reply (Recepção Automática) ───────────────────

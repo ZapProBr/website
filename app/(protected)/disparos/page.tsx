@@ -5,13 +5,13 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import {
   Megaphone, Plus, Clock, CheckCircle2, AlertCircle, X, Type, Mic, Image,
   Users, Tag, Send, Smartphone, FileText, Loader2, Trash2, Play, RefreshCw,
-  Square, Pause, Upload, Library, CircleStop, Pencil,
+  Square, Pause, Upload, Library, CircleStop, Pencil, CalendarX2, CalendarClock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   listBroadcasts, createBroadcast, sendBroadcast, deleteBroadcast, getBroadcast,
-  stopBroadcast, updateBroadcast,
+  stopBroadcast, updateBroadcast, unscheduleBroadcast,
   listInstances, listTags, listContacts,
   listSavedAudios, getSavedAudio, createSavedAudio,
   type BroadcastItem, type EvolutionInstance, type Tag as TagType, type Contact,
@@ -50,6 +50,7 @@ function newDraftItem(): ContentItemDraft {
 
 const statusConfig: Record<string, { icon: typeof CheckCircle2; label: string; class: string }> = {
   rascunho: { icon: AlertCircle, label: "Rascunho", class: "text-muted-foreground bg-muted" },
+  agendado: { icon: CalendarClock, label: "Agendado", class: "text-chart-4 bg-chart-4/10" },
   enviando: { icon: Loader2, label: "Enviando…", class: "text-chart-4 bg-chart-4/10" },
   concluido: { icon: CheckCircle2, label: "Concluído", class: "text-primary bg-primary/10" },
   erro: { icon: AlertCircle, label: "Erro", class: "text-destructive bg-destructive/10" },
@@ -356,6 +357,16 @@ export default function DisparosPage() {
     }
   };
 
+  const handleUnschedule = async (id: string) => {
+    try {
+      await unscheduleBroadcast(id);
+      toast.success("Agendamento cancelado");
+      await loadBroadcasts();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao cancelar agendamento");
+    }
+  };
+
   const handleUpdate = async () => {
     if (!editingBroadcast || !title.trim()) return;
     if (!selectedInstance) {
@@ -553,11 +564,18 @@ export default function DisparosPage() {
                         </span>
                       </td>
                       <td className="px-5 py-4 text-sm text-muted-foreground">
-                        {new Date(d.created_at).toLocaleDateString("pt-BR")}
+                        {d.scheduled_at ? (
+                          <div>
+                            <span className="block">{new Date(d.scheduled_at).toLocaleDateString("pt-BR")}</span>
+                            <span className="text-xs text-chart-4">{new Date(d.scheduled_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
+                          </div>
+                        ) : (
+                          new Date(d.created_at).toLocaleDateString("pt-BR")
+                        )}
                       </td>
                       <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          {d.status !== "enviando" && (
+                          {d.status !== "enviando" && d.status !== "agendado" && (
                             <button
                               onClick={() => handleResend(d.id)}
                               className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-primary"
@@ -565,6 +583,24 @@ export default function DisparosPage() {
                             >
                               {d.status === "concluido" ? <RefreshCw className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                             </button>
+                          )}
+                          {d.status === "agendado" && (
+                            <>
+                              <button
+                                onClick={() => handleResend(d.id)}
+                                className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-primary"
+                                title="Enviar agora"
+                              >
+                                <Play className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleUnschedule(d.id)}
+                                className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-chart-4"
+                                title="Cancelar agendamento"
+                              >
+                                <CalendarX2 className="w-4 h-4" />
+                              </button>
+                            </>
                           )}
                           {d.status !== "enviando" && (
                             <button
