@@ -2,13 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
-import { AudioItem, getAudioStore, setAudioStore } from "@/lib/audioStore";
-import { Mic, Plus, Trash2, Upload, X, Check, CircleStop } from "lucide-react";
+import { listSavedAudios, createSavedAudio, getSavedAudio, deleteSavedAudio, type SavedAudio } from "@/lib/api";
+import { Mic, Plus, Trash2, Upload, X, Check, CircleStop, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AudioPlayer } from "@/components/conversas/AudioPlayer";
+import { toast } from "sonner";
 
 export default function DisparoAudioPage() {
-  const [audios, setAudios] = useState<AudioItem[]>(getAudioStore());
+  const [audios, setAudios] = useState<(SavedAudio & { audio_base64?: string })[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [isRecording, setIsRecording] = useState(false);
@@ -36,21 +38,22 @@ export default function DisparoAudioPage() {
     return `${min}:${sec.toString().padStart(2, "0")}`;
   };
 
-  const addAudio = () => {
+  const addAudio = async () => {
     if (!newTitle.trim() || !pendingAudio) return;
 
-    const newItem: AudioItem = {
-      id: Date.now().toString(),
-      title: newTitle.trim(),
-      fileName: pendingAudio.fileName,
-      duration: pendingAudio.duration,
-      createdAt: new Date().toLocaleDateString("pt-BR"),
-      base64: pendingAudio.base64,
-      mimetype: pendingAudio.mimetype,
-    };
-    const updated = [newItem, ...audios];
-    setAudios(updated);
-    setAudioStore(updated);
+    try {
+      const saved = await createSavedAudio({
+        title: newTitle.trim(),
+        duration: pendingAudio.duration,
+        mimetype: pendingAudio.mimetype,
+        audio_base64: pendingAudio.base64,
+      });
+      // Add to local state with base64 for preview
+      setAudios((prev) => [{ ...saved, audio_base64: pendingAudio.base64 }, ...prev]);
+      toast.success("Áudio salvo com sucesso");
+    } catch {
+      toast.error("Erro ao salvar áudio");
+    }
     setNewTitle("");
     if (pendingAudio?.blobUrl) URL.revokeObjectURL(pendingAudio.blobUrl);
     setPendingAudio(null);
@@ -207,6 +210,10 @@ export default function DisparoAudioPage() {
   };
 
   useEffect(() => {
+    listSavedAudios()
+      .then((list) => setAudios(list.map((a) => ({ ...a, audio_base64: undefined }))))
+      .catch(() => toast.error("Erro ao carregar áudios"))
+      .finally(() => setLoading(false));
     return () => {
       cleanupRecording();
       if (pendingAudio?.blobUrl) URL.revokeObjectURL(pendingAudio.blobUrl);
@@ -214,11 +221,31 @@ export default function DisparoAudioPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const removeAudio = (id: string) => {
-    const updated = audios.filter((a) => a.id !== id);
-    setAudios(updated);
-    setAudioStore(updated);
+  const removeAudio = async (id: string) => {
+    try {
+      await deleteSavedAudio(id);
+      setAudios((prev) => prev.filter((a) => a.id !== id));
+      toast.success("Áudio removido");
+    } catch {
+      toast.error("Erro ao remover áudio");
+    }
   };
+
+  // Sub-component that fetches base64 on demand for audio preview
+  function AudioPlayerWithFetch({ audioId, cachedBase64, mimetype }: { audioId: string; cachedBase64?: string; mimetype: string }) {
+    const [src, setSrc] = useState<string | null>(cachedBase64 ? `data:${mimetype};base64,${cachedBase64}` : null);
+    const [fetching, setFetching] = useState(false);
+    useEffect(() => {
+      if (src || fetching) return;
+      setFetching(true);
+      getSavedAudio(audioId)
+        .then((full) => setSrc(`data:${full.mimetype};base64,${full.audio_base64}`))
+        .catch(() => toast.error("Erro ao carregar áudio"))
+        .finally(() => setFetching(false));
+    }, [audioId, src, fetching]);
+    if (!src) return <div className="flex items-center gap-2 py-2"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /><span className="text-xs text-muted-foreground">Carregando...</span></div>;
+    return <AudioPlayer src={src} sent={false} />;
+  }
 
   return (
     <AppLayout>
@@ -239,7 +266,12 @@ export default function DisparoAudioPage() {
           </button>
         </div>
 
-        {audios.length === 0 ? (
+        {loading ? (
+          <div className="glass-card rounded-xl p-12 flex flex-col items-center justify-center text-center">
+            <Loader2 className="w-8 h-8 text-primary animate-spin mb-4" />
+            <p className="text-sm text-muted-foreground">Carregando áudios...</p>
+          </div>
+        ) : audios.length === 0 ? (
           <div className="glass-card rounded-xl p-12 flex flex-col items-center justify-center text-center">
             <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
               <Mic className="w-8 h-8 text-primary" />
@@ -259,7 +291,7 @@ export default function DisparoAudioPage() {
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-sm font-semibold text-foreground">{audio.title}</h3>
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-muted-foreground">{audio.createdAt}</span>
+                    <span className="text-xs text-muted-foreground">{audio.created_at ? new Date(audio.created_at).toLocaleDateString("pt-BR") : ""}</span>
                     <button
                       onClick={() => removeAudio(audio.id)}
                       className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
@@ -268,10 +300,7 @@ export default function DisparoAudioPage() {
                     </button>
                   </div>
                 </div>
-                <AudioPlayer
-                  src={`data:${audio.mimetype};base64,${audio.base64}`}
-                  sent={false}
-                />
+                <AudioPlayerWithFetch audioId={audio.id} cachedBase64={audio.audio_base64} mimetype={audio.mimetype} />
               </div>
             ))}
           </div>

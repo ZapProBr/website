@@ -388,6 +388,40 @@ export function getWebSocketUrl(): string {
   return `${wsBase}/ws${token ? `?token=${encodeURIComponent(token)}` : ""}`;
 }
 
+// ── Saved Audios (persistent, stored in DB) ────────────
+export interface SavedAudio {
+  id: string;
+  title: string;
+  duration: string | null;
+  mimetype: string;
+  created_at: string;
+}
+
+export interface SavedAudioWithData extends SavedAudio {
+  audio_base64: string;
+}
+
+export function listSavedAudios(): Promise<SavedAudio[]> {
+  return api<SavedAudio[]>("/api/saved-audios");
+}
+
+export function getSavedAudio(id: string): Promise<SavedAudioWithData> {
+  return api<SavedAudioWithData>(`/api/saved-audios/${id}`);
+}
+
+export function createSavedAudio(data: {
+  title: string;
+  duration?: string;
+  mimetype: string;
+  audio_base64: string;
+}): Promise<SavedAudio> {
+  return api<SavedAudio>("/api/saved-audios", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function deleteSavedAudio(id: string): Promise<void> {
+  return api<void>(`/api/saved-audios/${id}`, { method: "DELETE" });
+}
+
 export function offerCall(instanceName: string, number: string, isVideo = false): Promise<unknown> {
   return api<unknown>(`/api/evolution/instances/${encodeURIComponent(instanceName)}/call`, {
     method: "POST",

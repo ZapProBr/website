@@ -29,7 +29,7 @@ import {
   MessageCircle,
   MapPin,
 } from "lucide-react";
-import { getAudioStore } from "@/lib/audioStore";
+
 import { setTagStore } from "@/lib/tagStore";
 import { ClientDetailPanel } from "@/components/conversas/ClientDetailPanel";
 import { AudioPlayer } from "@/components/conversas/AudioPlayer";
@@ -57,10 +57,13 @@ import {
   createContact as apiCreateContact,
   getMediaUrl,
   getWebSocketUrl,
+  listSavedAudios,
+  getSavedAudio,
   type ConversationItem,
   type MessageItem,
   type User as ApiUser,
   type Tag as ApiTag,
+  type SavedAudio,
 } from "@/lib/api";
 
 type ConversationStatus = "aguardando" | "atendendo" | "finalizado";
@@ -95,6 +98,7 @@ export default function ConversasPage() {
     ConversationStatus | "todos"
   >(urlStatus ?? "atendendo");
   const [showAudioList, setShowAudioList] = useState(false);
+  const [savedAudios, setSavedAudios] = useState<SavedAudio[]>([]);
   const [showAttach, setShowAttach] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -321,6 +325,9 @@ export default function ConversasPage() {
           tags.map((t) => ({ id: t.id, name: t.name, color: t.color })),
         );
       })
+      .catch(() => {});
+    listSavedAudios()
+      .then(setSavedAudios)
       .catch(() => {});
   }, []);
 
@@ -1766,25 +1773,26 @@ export default function ConversasPage() {
                     <X className="w-4 h-4 text-muted-foreground" />
                   </button>
                 </div>
-                {getAudioStore().length === 0 ? (
+                {savedAudios.length === 0 ? (
                   <p className="px-4 py-6 text-sm text-muted-foreground text-center">
                     Nenhum áudio salvo
                   </p>
                 ) : (
-                  getAudioStore().map((audio) => (
+                  savedAudios.map((audio) => (
                     <button
                       key={audio.id}
-                      onClick={() => {
+                      onClick={async () => {
                         setShowAudioList(false);
-                        if (audio.base64 && audio.mimetype) {
+                        try {
+                          const full = await getSavedAudio(audio.id);
                           sendMediaMessage(
-                            audio.base64,
-                            audio.mimetype,
+                            full.audio_base64,
+                            full.mimetype,
                             "audio",
                             audio.title,
                           );
-                        } else {
-                          toast.info("Áudio sem dados de envio");
+                        } catch {
+                          toast.error("Erro ao carregar áudio");
                         }
                       }}
                       className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left"
