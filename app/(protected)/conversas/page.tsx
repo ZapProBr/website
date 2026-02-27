@@ -1216,6 +1216,9 @@ export default function ConversasPage() {
                   </div>
                 );
               }
+              const isSticker =
+                msg.message_type === "sticker" ||
+                (msg.has_media && msg.media_mimetype === "image/webp");
               return (
                 <div
                   key={msg.id}
@@ -1226,16 +1229,19 @@ export default function ConversasPage() {
                 >
                   <div
                     className={cn(
-                      "relative max-w-[65%]",
+                      "relative",
+                      isSticker ? "max-w-[230px]" : "max-w-[65%]",
                       msg.reaction && "mb-3",
                     )}
                   >
                     <div
                       className={cn(
-                        "rounded-2xl text-sm overflow-hidden",
-                        msg.sent
-                          ? "bg-primary text-primary-foreground rounded-br-md"
-                          : "bg-muted text-foreground rounded-bl-md",
+                        "text-sm overflow-hidden",
+                        isSticker
+                          ? "bg-transparent text-foreground rounded-none"
+                          : msg.sent
+                            ? "rounded-2xl bg-primary text-primary-foreground rounded-br-md"
+                            : "rounded-2xl bg-muted text-foreground rounded-bl-md",
                       )}
                     >
                       {/* Media content */}
@@ -1244,8 +1250,13 @@ export default function ConversasPage() {
                           {msg.media_mimetype.startsWith("image/") && (
                             <img
                               src={getMediaUrl(selected, msg.id)}
-                              alt="Imagem"
-                              className="w-full max-h-80 object-cover cursor-pointer"
+                              alt={isSticker ? "Figurinha" : "Imagem"}
+                              className={cn(
+                                "cursor-pointer",
+                                isSticker
+                                  ? "w-44 h-44 object-contain"
+                                  : "w-full max-h-80 object-cover",
+                              )}
                               loading="lazy"
                               onLoad={() => {
                                 if (isUserNearBottom.current) scrollToBottom();
@@ -1317,10 +1328,12 @@ export default function ConversasPage() {
                       )}
                       <div
                         className={cn(
-                          "flex items-center justify-end gap-1 px-4 pb-2",
-                          msg.sent
-                            ? "text-primary-foreground/70"
-                            : "text-muted-foreground",
+                          "flex items-center justify-end gap-1",
+                          isSticker
+                            ? "mt-1 px-1 pb-0 text-muted-foreground"
+                            : msg.sent
+                              ? "px-4 pb-2 text-primary-foreground/70"
+                              : "px-4 pb-2 text-muted-foreground",
                         )}
                       >
                         <span className="text-[10px]">
