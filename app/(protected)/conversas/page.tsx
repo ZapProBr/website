@@ -1165,6 +1165,52 @@ export default function ConversasPage() {
 
         {/* Chat Area */}
         <div className="flex-1 flex flex-col">
+          {!selected ? (
+            /* ── Empty state placeholder ── */
+            <div className="flex-1 flex flex-col items-center justify-center bg-muted/30 select-none">
+              <div className="flex flex-col items-center gap-6 max-w-sm text-center animate-fade-in">
+                <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center">
+                  <MessageCircle className="w-12 h-12 text-primary/60" />
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-xl font-semibold text-foreground">
+                    Suas conversas
+                  </h2>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Selecione uma conversa ao lado para visualizar as mensagens e
+                    começar a interagir com seus contatos.
+                  </p>
+                </div>
+                <div className="flex items-center gap-6 text-muted-foreground/60 text-xs pt-2">
+                  <div className="flex flex-col items-center gap-1.5">
+                    <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+                      <SendIcon className="w-4 h-4" />
+                    </div>
+                    <span>Enviar</span>
+                  </div>
+                  <div className="flex flex-col items-center gap-1.5">
+                    <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+                      <Mic className="w-4 h-4" />
+                    </div>
+                    <span>Áudio</span>
+                  </div>
+                  <div className="flex flex-col items-center gap-1.5">
+                    <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+                      <Image className="w-4 h-4" />
+                    </div>
+                    <span>Imagem</span>
+                  </div>
+                  <div className="flex flex-col items-center gap-1.5">
+                    <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+                      <ArrowRightLeft className="w-4 h-4" />
+                    </div>
+                    <span>Transferir</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+          <>
           {/* Chat header */}
           <div className="border-b border-border">
             <div className="flex items-center justify-between px-5 py-3">
@@ -2084,6 +2130,8 @@ export default function ConversasPage() {
               </div>
             )}
           </div>
+          </>
+          )}
         </div>
 
         {/* Client Detail Panel */}
