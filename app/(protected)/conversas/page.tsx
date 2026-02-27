@@ -505,6 +505,7 @@ export default function ConversasPage() {
       message_type: messageType,
       has_media: true,
       media_mimetype: mimetype,
+      media_url: null,
       reaction: null,
       created_at: new Date().toISOString(),
     };
@@ -693,6 +694,7 @@ export default function ConversasPage() {
       message_type: "text",
       has_media: false,
       media_mimetype: null,
+      media_url: null,
       reaction: null,
       created_at: new Date().toISOString(),
     };
@@ -885,6 +887,26 @@ export default function ConversasPage() {
                       {(() => {
                         const msg = conv.last_message || "";
                         const lower = msg.toLowerCase().trim();
+                        const canShowStickerThumb =
+                          conv.last_message_type === "sticker" &&
+                          conv.last_message_has_media &&
+                          !!conv.last_message_id &&
+                          !!conv.last_message_media_mimetype &&
+                          conv.last_message_media_mimetype.startsWith("image/");
+
+                        if (canShowStickerThumb)
+                          return (
+                            <>
+                              <img
+                                src={getMediaUrl(conv.id, conv.last_message_id!)}
+                                alt="Figurinha"
+                                className="w-5 h-5 rounded object-cover flex-shrink-0"
+                                loading="lazy"
+                              />
+                              Figurinha
+                            </>
+                          );
+
                         if (lower === "[audio]" || lower === "[áudio]")
                           return (
                             <>
@@ -905,6 +927,13 @@ export default function ConversasPage() {
                             </>
                           );
                         if (lower === "[sticker]" || lower === "[figurinha]")
+                          return (
+                            <>
+                              <Sticker className="w-3 h-3 flex-shrink-0" />{" "}
+                              Figurinha
+                            </>
+                          );
+                        if (conv.last_message_type === "sticker")
                           return (
                             <>
                               <Sticker className="w-3 h-3 flex-shrink-0" />{" "}

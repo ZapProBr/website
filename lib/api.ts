@@ -228,6 +228,10 @@ export interface ConversationItem {
   connection_id: string | null;
   department: string | null;
   last_message: string | null;
+  last_message_id: string | null;
+  last_message_type: string | null;
+  last_message_has_media: boolean;
+  last_message_media_mimetype: string | null;
   unread_count: number;
   tags: Tag[];
   created_at: string;
@@ -323,7 +327,7 @@ export function sendMessage(conversationId: string, data: { text: string; messag
 
 export function sendMedia(
   conversationId: string,
-  data: { media_base64: string; media_mimetype: string; caption?: string; message_type?: "image" | "audio" | "document" },
+  data: { media_base64: string; media_mimetype: string; caption?: string; message_type?: "image" | "audio" | "document" | "sticker" },
 ): Promise<MessageItem> {
   return api<MessageItem>(`/api/conversations/${conversationId}/messages/media`, {
     method: "POST",
