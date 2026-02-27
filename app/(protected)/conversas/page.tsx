@@ -99,6 +99,13 @@ export default function ConversasPage() {
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [recordTime, setRecordTime] = useState(0);
+  const [isDragOverChat, setIsDragOverChat] = useState(false);
+  const [pendingImage, setPendingImage] = useState<{
+    base64: string;
+    mimetype: string;
+    previewUrl: string;
+    name: string;
+  } | null>(null);
   const recordInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
@@ -174,6 +181,66 @@ export default function ConversasPage() {
   const selectedRef = useRef<string>(urlConvId);
   const fetchMessagesRef = useRef<() => void>(() => {});
   const fetchConversationsRef = useRef<() => void>(() => {});
+
+  const clearPendingImage = useCallback(() => {
+    setPendingImage((prev) => {
+      if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+      return null;
+    });
+  }, []);
+
+  const fileToBase64 = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = String(reader.result || "");
+        if (!result.includes(",")) {
+          reject(new Error("Falha ao ler imagem"));
+          return;
+        }
+        resolve(result.split(",", 2)[1]);
+      };
+      reader.onerror = () => reject(new Error("Falha ao ler imagem"));
+      reader.readAsDataURL(file);
+    });
+
+  const preparePendingImage = useCallback(
+    async (file: File) => {
+      if (!file.type.startsWith("image/")) {
+        toast.error("Selecione um arquivo de imagem válido.");
+        return;
+      }
+      if (file.size > 15 * 1024 * 1024) {
+        toast.error("Imagem muito grande (máximo 15MB).");
+        return;
+      }
+
+      try {
+        const base64 = await fileToBase64(file);
+        setPendingImage((prev) => {
+          if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+          return {
+            base64,
+            mimetype: file.type,
+            previewUrl: URL.createObjectURL(file),
+            name: file.name || "imagem",
+          };
+        });
+      } catch {
+        toast.error("Não foi possível processar a imagem.");
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    return () => {
+      setPendingImage((prev) => {
+        if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+        return null;
+      });
+    };
+  }, []);
 
   // Scroll helper
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
@@ -531,28 +598,55 @@ export default function ConversasPage() {
   };
 
   // ── Image upload ──────────────────────────────
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("Selecione um arquivo de imagem válido.");
-      return;
-    }
-    if (file.size > 15 * 1024 * 1024) {
-      toast.error("Imagem muito grande (máximo 15MB).");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      // result = "data:<mime>;base64,<data>"
-      const base64 = result.split(",")[1];
-      sendMediaMessage(base64, file.type, "image");
-    };
-    reader.readAsDataURL(file);
+    await preparePendingImage(file);
     // Reset input so same file can be re-selected
     e.target.value = "";
   };
+
+  const handleComposerPaste = useCallback(
+    async (e: React.ClipboardEvent<HTMLElement>) => {
+      const items = Array.from(e.clipboardData?.items || []);
+      const imageItem = items.find((item) => item.type.startsWith("image/"));
+      if (!imageItem) return;
+
+      const file = imageItem.getAsFile();
+      if (!file) return;
+      e.preventDefault();
+      await preparePendingImage(file);
+    },
+    [preparePendingImage],
+  );
+
+  const handleChatDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    if (!Array.from(e.dataTransfer.types).includes("Files")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    setIsDragOverChat(true);
+  }, []);
+
+  const handleChatDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setIsDragOverChat(false);
+  }, []);
+
+  const handleChatDrop = useCallback(
+    async (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      setIsDragOverChat(false);
+      const file = Array.from(e.dataTransfer.files || []).find((f) =>
+        f.type.startsWith("image/"),
+      );
+      if (!file) {
+        toast.info("Arraste uma imagem para enviar.");
+        return;
+      }
+      await preparePendingImage(file);
+    },
+    [preparePendingImage],
+  );
 
   // ── Document upload ──────────────────────────────
   const handleDocumentSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -675,7 +769,21 @@ export default function ConversasPage() {
   };
 
   const sendMessage = async () => {
-    if (!messageText.trim() || !selected || isSending) return;
+    if ((!messageText.trim() && !pendingImage) || !selected || isSending) return;
+
+    if (pendingImage) {
+      const caption = messageText.trim();
+      setMessageText("");
+      await sendMediaMessage(
+        pendingImage.base64,
+        pendingImage.mimetype,
+        "image",
+        caption,
+      );
+      clearPendingImage();
+      return;
+    }
+
     const text = messageText.trim();
     setIsSending(true);
     setMessageText("");
@@ -1188,6 +1296,9 @@ export default function ConversasPage() {
 
           <div
             ref={messagesContainerRef}
+            onDragOver={handleChatDragOver}
+            onDragLeave={handleChatDragLeave}
+            onDrop={handleChatDrop}
             onScroll={() => {
               // Ignore scroll events caused by our own programmatic scrolls
               if (programmaticScroll.current) {
@@ -1206,6 +1317,11 @@ export default function ConversasPage() {
             }}
             className="flex-1 overflow-y-auto p-5 space-y-3 bg-muted/30"
           >
+            {isDragOverChat && (
+              <div className="sticky top-2 z-20 rounded-xl border-2 border-dashed border-primary/60 bg-card/95 py-3 px-4 text-center text-sm font-medium text-foreground">
+                Solte a imagem para anexar com legenda
+              </div>
+            )}
             {chatMessages.map((msg) => {
               if (msg.is_system) {
                 return (
@@ -1621,7 +1737,33 @@ export default function ConversasPage() {
                 </button>
               </div>
             ) : (
-              <div className="flex gap-2 items-center">
+              <div className="space-y-2" onPaste={handleComposerPaste}>
+                {pendingImage && (
+                  <div className="inline-flex items-start gap-3 rounded-xl border border-border bg-card p-2.5 max-w-[380px]">
+                    <img
+                      src={pendingImage.previewUrl}
+                      alt="Prévia"
+                      className="w-16 h-16 rounded-md object-cover"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-foreground truncate">
+                        {pendingImage.name}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Imagem pronta para envio com legenda
+                      </p>
+                    </div>
+                    <button
+                      onClick={clearPendingImage}
+                      className="p-1 rounded hover:bg-muted"
+                      title="Remover imagem"
+                    >
+                      <X className="w-4 h-4 text-muted-foreground" />
+                    </button>
+                  </div>
+                )}
+
+                <div className="flex gap-2 items-center">
                 <button
                   onClick={() => {
                     setShowAttach(!showAttach);
@@ -1656,7 +1798,11 @@ export default function ConversasPage() {
                 </button>
                 <input
                   type="text"
-                  placeholder="Digite uma mensagem..."
+                  placeholder={
+                    pendingImage
+                      ? "Adicione uma legenda (opcional)..."
+                      : "Digite uma mensagem..."
+                  }
                   value={messageText}
                   onChange={(e) => handleMessageInput(e.target.value)}
                   onKeyDown={(e) => {
@@ -1676,16 +1822,17 @@ export default function ConversasPage() {
                 </button>
                 <button
                   onClick={sendMessage}
-                  disabled={isSending || !messageText.trim()}
+                  disabled={isSending || (!messageText.trim() && !pendingImage)}
                   className={cn(
                     "p-2.5 rounded-lg transition-colors flex-shrink-0",
-                    isSending || !messageText.trim()
+                    isSending || (!messageText.trim() && !pendingImage)
                       ? "bg-muted text-muted-foreground cursor-not-allowed"
                       : "bg-primary text-primary-foreground hover:bg-primary/90",
                   )}
                 >
                   <SendIcon className="w-5 h-5" />
                 </button>
+              </div>
               </div>
             )}
           </div>
