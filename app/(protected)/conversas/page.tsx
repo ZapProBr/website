@@ -31,6 +31,15 @@ import {
 } from "lucide-react";
 
 import { setTagStore } from "@/lib/tagStore";
+import {
+  getCachedConversations, setCachedConversations,
+  getCachedMessages, setCachedMessages,
+  getCachedUsers, setCachedUsers,
+  getCachedTags, setCachedTags,
+  getCachedSavedAudios, setCachedSavedAudios,
+  getCachedSelectedId, setCachedSelectedId,
+  getCachedStatusFilter, setCachedStatusFilter,
+} from "@/lib/conversationCache";
 import { ClientDetailPanel } from "@/components/conversas/ClientDetailPanel";
 import { AudioPlayer } from "@/components/conversas/AudioPlayer";
 import { RecordingVisualizer } from "@/components/conversas/RecordingVisualizer";
@@ -79,26 +88,55 @@ export default function ConversasPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  // API data
-  const [conversations, setConversations] = useState<ConversationItem[]>([]);
-  const [apiUsers, setApiUsers] = useState<ApiUser[]>([]);
-  const [apiTags, setApiTags] = useState<ApiTag[]>([]);
+  // API data — initialise from module-level cache so returning to this tab is instant
+  const [conversations, setConversationsRaw] = useState<ConversationItem[]>(getCachedConversations);
+  const [apiUsers, setApiUsersRaw] = useState<ApiUser[]>(getCachedUsers);
+  const [apiTags, setApiTagsRaw] = useState<ApiTag[]>(getCachedTags);
 
-  // Selected conversation from URL
+  // Wrap setters to also persist to cache
+  const setConversations = useCallback((data: ConversationItem[]) => {
+    setCachedConversations(data);
+    setConversationsRaw(data);
+  }, []);
+  const setApiUsers = useCallback((data: ApiUser[]) => {
+    setCachedUsers(data);
+    setApiUsersRaw(data);
+  }, []);
+  const setApiTags = useCallback((data: ApiTag[]) => {
+    setCachedTags(data);
+    setApiTagsRaw(data);
+  }, []);
+
+  // Selected conversation from URL (fall back to cached selection)
   const urlConvId = searchParams.get("id") ?? "";
   const urlStatus = searchParams.get("status") as
     | ConversationStatus
     | "todos"
     | null;
-  const [selected, setSelectedState] = useState<string>(urlConvId);
-  const [chatMessages, setChatMessages] = useState<MessageItem[]>([]);
+  const initialId = urlConvId || getCachedSelectedId();
+  const initialStatus = urlStatus ?? (getCachedStatusFilter() as ConversationStatus | "todos") ?? "atendendo";
+  const [selected, setSelectedState] = useState<string>(initialId);
+  const [chatMessages, setChatMessagesRaw] = useState<MessageItem[]>(() => getCachedMessages(initialId));
   const [messageText, setMessageText] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilterState] = useState<
     ConversationStatus | "todos"
-  >(urlStatus ?? "atendendo");
+  >(initialStatus);
+
+  // Wrap setChatMessages to also persist to cache
+  const setChatMessages = useCallback((updater: MessageItem[] | ((prev: MessageItem[]) => MessageItem[])) => {
+    setChatMessagesRaw((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      if (selectedRef.current) setCachedMessages(selectedRef.current, next);
+      return next;
+    });
+  }, []);
   const [showAudioList, setShowAudioList] = useState(false);
-  const [savedAudios, setSavedAudios] = useState<SavedAudio[]>([]);
+  const [savedAudios, setSavedAudiosRaw] = useState<SavedAudio[]>(getCachedSavedAudios);
+  const setSavedAudios = useCallback((data: SavedAudio[]) => {
+    setCachedSavedAudios(data);
+    setSavedAudiosRaw(data);
+  }, []);
   const [showAttach, setShowAttach] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -184,7 +222,7 @@ export default function ConversasPage() {
   const wsReconnectTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Refs so the WS closure always has the latest values
-  const selectedRef = useRef<string>(urlConvId);
+  const selectedRef = useRef<string>(initialId);
   const fetchMessagesRef = useRef<() => void>(() => {});
   const fetchConversationsRef = useRef<() => void>(() => {});
 
@@ -269,19 +307,23 @@ export default function ConversasPage() {
     [router, searchParams],
   );
 
-  // Keep selected in sync with URL
+  // Keep selected in sync with URL + cache
   const setSelected = useCallback(
     (id: string) => {
       setSelectedState(id);
+      setCachedSelectedId(id);
+      // Pre-load cached messages for the newly selected conversation
+      setChatMessagesRaw(getCachedMessages(id));
       updateUrl({ id: id || null });
     },
     [updateUrl],
   );
 
-  // Keep status filter in sync with URL
+  // Keep status filter in sync with URL + cache
   const setStatusFilter = useCallback(
     (status: ConversationStatus | "todos") => {
       setStatusFilterState(status);
+      setCachedStatusFilter(status);
       updateUrl({ status: status });
     },
     [updateUrl],
