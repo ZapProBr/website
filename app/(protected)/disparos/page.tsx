@@ -557,23 +557,23 @@ export default function DisparosPage() {
                       </td>
                       <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          {(d.status === "rascunho" || d.status === "erro") && (
-                            <>
-                              <button
-                                onClick={() => handleResend(d.id)}
-                                className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-primary"
-                                title="Enviar"
-                              >
-                                <Play className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => openEditModal(d)}
-                                className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                                title="Editar"
-                              >
-                                <Pencil className="w-4 h-4" />
-                              </button>
-                            </>
+                          {d.status !== "enviando" && (
+                            <button
+                              onClick={() => handleResend(d.id)}
+                              className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-primary"
+                              title={d.status === "concluido" ? "Enviar novamente" : "Enviar"}
+                            >
+                              {d.status === "concluido" ? <RefreshCw className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                            </button>
+                          )}
+                          {d.status !== "enviando" && (
+                            <button
+                              onClick={() => openEditModal(d)}
+                              className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                              title="Editar"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
                           )}
                           {d.status === "enviando" && (
                             <button
