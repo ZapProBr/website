@@ -61,7 +61,11 @@ export function AudioPlayer({ src, sent }: AudioPlayerProps) {
     if (waveformFetched.current) return;
     waveformFetched.current = true;
 
-    const ac = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    const ac = new (
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext })
+        .webkitAudioContext
+    )();
 
     fetch(src)
       .then((res) => res.arrayBuffer())
@@ -133,7 +137,11 @@ export function AudioPlayer({ src, sent }: AudioPlayerProps) {
     // Lazily decode the waveform on first play (avoids fetching all audio on mount)
     fetchWaveform();
     if (audio.paused) {
-      try { await audio.play(); } catch { /* user gesture needed */ }
+      try {
+        await audio.play();
+      } catch {
+        /* user gesture needed */
+      }
     } else {
       audio.pause();
     }
@@ -169,13 +177,14 @@ export function AudioPlayer({ src, sent }: AudioPlayerProps) {
           "flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-colors",
           sent
             ? "bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground"
-            : "bg-primary/15 hover:bg-primary/25 text-primary"
+            : "bg-primary/15 hover:bg-primary/25 text-primary",
         )}
       >
-        {playing
-          ? <Pause className="w-4 h-4" fill="currentColor" />
-          : <Play className="w-4 h-4 ml-0.5" fill="currentColor" />
-        }
+        {playing ? (
+          <Pause className="w-4 h-4" fill="currentColor" />
+        ) : (
+          <Play className="w-4 h-4 ml-0.5" fill="currentColor" />
+        )}
       </button>
 
       {/* Waveform + progress */}
@@ -193,8 +202,12 @@ export function AudioPlayer({ src, sent }: AudioPlayerProps) {
                 className={cn(
                   "flex-1 rounded-full min-w-[2px] transition-colors duration-100",
                   isPlayed
-                    ? sent ? "bg-primary-foreground" : "bg-primary"
-                    : sent ? "bg-primary-foreground/30" : "bg-primary/25"
+                    ? sent
+                      ? "bg-primary-foreground"
+                      : "bg-primary"
+                    : sent
+                      ? "bg-primary-foreground/30"
+                      : "bg-primary/25",
                 )}
                 style={{ height: `${h * 100}%` }}
               />
@@ -204,14 +217,17 @@ export function AudioPlayer({ src, sent }: AudioPlayerProps) {
 
         {/* Time + speed control */}
         <div className="flex items-center justify-between">
-          <span className={cn(
-            "text-[10px] font-medium tabular-nums",
-            sent ? "text-primary-foreground/70" : "text-muted-foreground"
-          )}>
+          <span
+            className={cn(
+              "text-[10px] font-medium tabular-nums",
+              sent ? "text-primary-foreground/70" : "text-muted-foreground",
+            )}
+          >
             {playing || currentTime > 0
               ? formatDuration(currentTime)
-              : loaded ? formatDuration(duration) : "0:00"
-            }
+              : loaded
+                ? formatDuration(duration)
+                : "0:00"}
           </span>
           {playing && (
             <button
@@ -220,7 +236,7 @@ export function AudioPlayer({ src, sent }: AudioPlayerProps) {
                 "text-[10px] font-bold px-1.5 py-0.5 rounded-full transition-colors",
                 sent
                   ? "bg-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/30"
-                  : "bg-primary/10 text-primary hover:bg-primary/20"
+                  : "bg-primary/10 text-primary hover:bg-primary/20",
               )}
             >
               {playbackRate}x

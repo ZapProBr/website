@@ -6,10 +6,27 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
-  Search, Check, CheckCheck, Mic, X, Send as SendIcon,
-  Smile, Image, FileText, Sticker, Plus,
-  Trash2, Pause, Play, ArrowRightLeft, ChevronDown, CircleX,
-  Filter, Clock, User, MessageCircle,
+  Search,
+  Check,
+  CheckCheck,
+  Mic,
+  X,
+  Send as SendIcon,
+  Smile,
+  Image,
+  FileText,
+  Sticker,
+  Plus,
+  Trash2,
+  Pause,
+  Play,
+  ArrowRightLeft,
+  ChevronDown,
+  CircleX,
+  Filter,
+  Clock,
+  User,
+  MessageCircle,
 } from "lucide-react";
 import { getAudioStore } from "@/lib/audioStore";
 import { setTagStore } from "@/lib/tagStore";
@@ -17,7 +34,12 @@ import { ClientDetailPanel } from "@/components/conversas/ClientDetailPanel";
 import { AudioPlayer } from "@/components/conversas/AudioPlayer";
 import { RecordingVisualizer } from "@/components/conversas/RecordingVisualizer";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,11 +63,12 @@ import {
 
 type ConversationStatus = "aguardando" | "atendendo" | "finalizado";
 
-const statusFilters: { value: ConversationStatus | "todos"; label: string }[] = [
-  { value: "atendendo", label: "Atendendo" },
-  { value: "aguardando", label: "Aguardando" },
-  { value: "finalizado", label: "Finalizado" },
-];
+const statusFilters: { value: ConversationStatus | "todos"; label: string }[] =
+  [
+    { value: "atendendo", label: "Atendendo" },
+    { value: "aguardando", label: "Aguardando" },
+    { value: "finalizado", label: "Finalizado" },
+  ];
 
 export default function ConversasPage() {
   const searchParams = useSearchParams();
@@ -58,12 +81,17 @@ export default function ConversasPage() {
 
   // Selected conversation from URL
   const urlConvId = searchParams.get("id") ?? "";
-  const urlStatus = searchParams.get("status") as ConversationStatus | "todos" | null;
+  const urlStatus = searchParams.get("status") as
+    | ConversationStatus
+    | "todos"
+    | null;
   const [selected, setSelectedState] = useState<string>(urlConvId);
   const [chatMessages, setChatMessages] = useState<MessageItem[]>([]);
   const [messageText, setMessageText] = useState("");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilterState] = useState<ConversationStatus | "todos">(urlStatus ?? "atendendo");
+  const [statusFilter, setStatusFilterState] = useState<
+    ConversationStatus | "todos"
+  >(urlStatus ?? "atendendo");
   const [showAudioList, setShowAudioList] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
@@ -95,13 +123,25 @@ export default function ConversasPage() {
   // Close popups when clicking outside
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (showStatusMenu && statusMenuRef.current && !statusMenuRef.current.contains(e.target as Node)) {
+      if (
+        showStatusMenu &&
+        statusMenuRef.current &&
+        !statusMenuRef.current.contains(e.target as Node)
+      ) {
         setShowStatusMenu(false);
       }
-      if (showAttach && attachMenuRef.current && !attachMenuRef.current.contains(e.target as Node)) {
+      if (
+        showAttach &&
+        attachMenuRef.current &&
+        !attachMenuRef.current.contains(e.target as Node)
+      ) {
         setShowAttach(false);
       }
-      if (showEmoji && emojiMenuRef.current && !emojiMenuRef.current.contains(e.target as Node)) {
+      if (
+        showEmoji &&
+        emojiMenuRef.current &&
+        !emojiMenuRef.current.contains(e.target as Node)
+      ) {
         setShowEmoji(false);
       }
     };
@@ -144,30 +184,43 @@ export default function ConversasPage() {
   }, []);
 
   // Helper to build URL with current params
-  const updateUrl = useCallback((params: Record<string, string | null>) => {
-    const sp = new URLSearchParams(searchParams.toString());
-    for (const [k, v] of Object.entries(params)) {
-      if (v) sp.set(k, v); else sp.delete(k);
-    }
-    router.replace(`/conversas?${sp.toString()}`, { scroll: false });
-  }, [router, searchParams]);
+  const updateUrl = useCallback(
+    (params: Record<string, string | null>) => {
+      const sp = new URLSearchParams(searchParams.toString());
+      for (const [k, v] of Object.entries(params)) {
+        if (v) sp.set(k, v);
+        else sp.delete(k);
+      }
+      router.replace(`/conversas?${sp.toString()}`, { scroll: false });
+    },
+    [router, searchParams],
+  );
 
   // Keep selected in sync with URL
-  const setSelected = useCallback((id: string) => {
-    setSelectedState(id);
-    updateUrl({ id: id || null });
-  }, [updateUrl]);
+  const setSelected = useCallback(
+    (id: string) => {
+      setSelectedState(id);
+      updateUrl({ id: id || null });
+    },
+    [updateUrl],
+  );
 
   // Keep status filter in sync with URL
-  const setStatusFilter = useCallback((status: ConversationStatus | "todos") => {
-    setStatusFilterState(status);
-    updateUrl({ status: status });
-  }, [updateUrl]);
+  const setStatusFilter = useCallback(
+    (status: ConversationStatus | "todos") => {
+      setStatusFilterState(status);
+      updateUrl({ status: status });
+    },
+    [updateUrl],
+  );
 
   // On mount, restore from URL and auto-switch status to match selected conversation
   useEffect(() => {
     const id = searchParams.get("id");
-    const status = searchParams.get("status") as ConversationStatus | "todos" | null;
+    const status = searchParams.get("status") as
+      | ConversationStatus
+      | "todos"
+      | null;
     if (id && id !== selected) setSelectedState(id);
     if (status) setStatusFilterState(status);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -188,12 +241,18 @@ export default function ConversasPage() {
 
   // Fetch reference data
   useEffect(() => {
-    apiListUsers().then(setApiUsers).catch(() => {});
-    apiListTags().then((tags) => {
-      setApiTags(tags);
-      // Populate shared tagStore so ClientDetailPanel can read ids
-      setTagStore(tags.map((t) => ({ id: t.id, name: t.name, color: t.color })));
-    }).catch(() => {});
+    apiListUsers()
+      .then(setApiUsers)
+      .catch(() => {});
+    apiListTags()
+      .then((tags) => {
+        setApiTags(tags);
+        // Populate shared tagStore so ClientDetailPanel can read ids
+        setTagStore(
+          tags.map((t) => ({ id: t.id, name: t.name, color: t.color })),
+        );
+      })
+      .catch(() => {});
   }, []);
 
   // Fetch ALL conversations (no server filter — client filters for display)
@@ -201,13 +260,19 @@ export default function ConversasPage() {
     try {
       const data = await apiListConversations({ limit: 100 });
       setConversations(data);
-    } catch { /* silently fail */ }
+    } catch {
+      /* silently fail */
+    }
   }, []);
 
-  useEffect(() => { fetchConversations(); }, [fetchConversations]);
+  useEffect(() => {
+    fetchConversations();
+  }, [fetchConversations]);
 
   // Keep refs always pointing at the latest callbacks
-  useEffect(() => { fetchConversationsRef.current = fetchConversations; }, [fetchConversations]);
+  useEffect(() => {
+    fetchConversationsRef.current = fetchConversations;
+  }, [fetchConversations]);
 
   // WebSocket for real-time updates (replaces 5s polling)
   useEffect(() => {
@@ -226,24 +291,33 @@ export default function ConversasPage() {
         const pingInterval = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) ws.send("ping");
         }, 25000);
-        (ws as WebSocket & { _pingInterval?: ReturnType<typeof setInterval> })._pingInterval = pingInterval;
+        (
+          ws as WebSocket & { _pingInterval?: ReturnType<typeof setInterval> }
+        )._pingInterval = pingInterval;
       };
 
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          if (data.type === "new_message" || data.type === "conversation_update") {
+          if (
+            data.type === "new_message" ||
+            data.type === "conversation_update"
+          ) {
             // Use refs so we always call the latest version of these callbacks
             fetchConversationsRef.current();
             if (data.conversation_id === selectedRef.current) {
               fetchMessagesRef.current();
             }
           }
-        } catch { /* ignore non-JSON (e.g. "pong") */ }
+        } catch {
+          /* ignore non-JSON (e.g. "pong") */
+        }
       };
 
       ws.onclose = () => {
-        const interval = (ws as WebSocket & { _pingInterval?: ReturnType<typeof setInterval> })._pingInterval;
+        const interval = (
+          ws as WebSocket & { _pingInterval?: ReturnType<typeof setInterval> }
+        )._pingInterval;
         if (interval) clearInterval(interval);
         // Reconnect with backoff
         wsReconnectTimeout.current = setTimeout(() => {
@@ -274,29 +348,34 @@ export default function ConversasPage() {
   }, [fetchConversations]);
 
   // Fetch messages when selected conversation changes
-  const fetchMessages = useCallback(async (force = false) => {
-    if (!selected) return;
-    // Skip timer-based polling while a send is in-flight to preserve the optimistic message
-    // But allow WS-triggered fetches (force=true) to still go through
-    if (isSending && !force) return;
-    try {
-      const msgs = await apiListMessages(selected, { limit: 100 });
-      setChatMessages((prev) => {
-        // If we have optimistic (temp) messages, keep them and merge
-        const tempMsgs = prev.filter((m) => String(m.id).startsWith("temp-"));
-        if (tempMsgs.length === 0) return msgs;
-        // Merge: use API messages + keep temp msgs that aren't yet in API results
-        const apiIds = new Set(msgs.map((m) => m.id));
-        const survivingTemps = tempMsgs.filter((t) => !apiIds.has(t.id));
-        return [...msgs, ...survivingTemps];
-      });
-    } catch {
-      // Keep previous messages on network error — don't blank the screen
-    }
-  }, [selected, isSending]);
+  const fetchMessages = useCallback(
+    async (force = false) => {
+      if (!selected) return;
+      // Skip timer-based polling while a send is in-flight to preserve the optimistic message
+      // But allow WS-triggered fetches (force=true) to still go through
+      if (isSending && !force) return;
+      try {
+        const msgs = await apiListMessages(selected, { limit: 100 });
+        setChatMessages((prev) => {
+          // If we have optimistic (temp) messages, keep them and merge
+          const tempMsgs = prev.filter((m) => String(m.id).startsWith("temp-"));
+          if (tempMsgs.length === 0) return msgs;
+          // Merge: use API messages + keep temp msgs that aren't yet in API results
+          const apiIds = new Set(msgs.map((m) => m.id));
+          const survivingTemps = tempMsgs.filter((t) => !apiIds.has(t.id));
+          return [...msgs, ...survivingTemps];
+        });
+      } catch {
+        // Keep previous messages on network error — don't blank the screen
+      }
+    },
+    [selected, isSending],
+  );
 
   // Keep refs up to date whenever selected or fetchMessages changes
-  useEffect(() => { selectedRef.current = selected; }, [selected]);
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
   useEffect(() => {
     // WS handler calls fetchMessagesRef.current(true) to bypass isSending guard
     fetchMessagesRef.current = () => fetchMessages(true);
@@ -312,10 +391,15 @@ export default function ConversasPage() {
   // Fallback poll messages every 10s (WS handles real-time delivery)
   // Use a ref so isSending toggling doesn't recreate the interval
   const fetchMessagesForPollRef = useRef<() => void>(() => {});
-  useEffect(() => { fetchMessagesForPollRef.current = fetchMessages; }, [fetchMessages]);
+  useEffect(() => {
+    fetchMessagesForPollRef.current = fetchMessages;
+  }, [fetchMessages]);
   useEffect(() => {
     if (!selected) return;
-    const interval = setInterval(() => fetchMessagesForPollRef.current(), 10000);
+    const interval = setInterval(
+      () => fetchMessagesForPollRef.current(),
+      10000,
+    );
     return () => clearInterval(interval);
   }, [selected]); // only reset timer on conversation switch, not on every isSending change
 
@@ -344,7 +428,11 @@ export default function ConversasPage() {
       const t1 = setTimeout(scrollToBottom, 100);
       const t2 = setTimeout(scrollToBottom, 300);
       const t3 = setTimeout(scrollToBottom, 600);
-      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+        clearTimeout(t3);
+      };
     }
 
     if (hasNewMessages && isUserNearBottom.current) {
@@ -381,7 +469,12 @@ export default function ConversasPage() {
   const selectedConv = conversations.find((c) => c.id === selected);
 
   const getInitials = (name: string) =>
-    name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
+    name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
 
   const formatTime = (iso: string) => {
     const d = new Date(iso);
@@ -389,7 +482,12 @@ export default function ConversasPage() {
   };
 
   // ── Media send helper ──────────────────────────────
-  const sendMediaMessage = async (base64: string, mimetype: string, messageType: "image" | "audio" | "document", caption?: string) => {
+  const sendMediaMessage = async (
+    base64: string,
+    mimetype: string,
+    messageType: "image" | "audio" | "document",
+    caption?: string,
+  ) => {
     if (!selected || isSending) return;
     setIsSending(true);
 
@@ -420,7 +518,7 @@ export default function ConversasPage() {
         message_type: messageType,
       });
       setChatMessages((prev) =>
-        prev.map((m) => (m.id === tempId ? { ...msg } : m))
+        prev.map((m) => (m.id === tempId ? { ...msg } : m)),
       );
       fetchConversations();
     } catch (err: unknown) {
@@ -480,7 +578,9 @@ export default function ConversasPage() {
       audioStreamRef.current = stream;
       audioChunksRef.current = [];
 
-      const recorder = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
+      const recorder = new MediaRecorder(stream, {
+        mimeType: "audio/webm;codecs=opus",
+      });
       mediaRecorderRef.current = recorder;
 
       recorder.ondataavailable = (e) => {
@@ -500,7 +600,10 @@ export default function ConversasPage() {
   };
 
   const pauseRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+    if (
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current.state === "recording"
+    ) {
       mediaRecorderRef.current.pause();
     }
     setIsPaused(true);
@@ -508,7 +611,10 @@ export default function ConversasPage() {
   };
 
   const resumeRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "paused") {
+    if (
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current.state === "paused"
+    ) {
       mediaRecorderRef.current.resume();
     }
     setIsPaused(false);
@@ -518,7 +624,10 @@ export default function ConversasPage() {
   };
 
   const cancelRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+    if (
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current.state !== "inactive"
+    ) {
       mediaRecorderRef.current.onstop = null; // prevent send
       mediaRecorderRef.current.stop();
     }
@@ -593,7 +702,7 @@ export default function ConversasPage() {
       const msg = await apiSendMessage(selected, { text });
       // Replace optimistic msg with real one (sent to server = single check still)
       setChatMessages((prev) =>
-        prev.map((m) => (m.id === tempId ? { ...msg } : m))
+        prev.map((m) => (m.id === tempId ? { ...msg } : m)),
       );
       fetchConversations();
     } catch (err: unknown) {
@@ -649,12 +758,16 @@ export default function ConversasPage() {
         <div className="w-[340px] border-r border-border flex flex-col bg-card">
           <div className="p-4 border-b border-border space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-foreground">Conversas</h2>
+              <h2 className="text-lg font-semibold text-foreground">
+                Conversas
+              </h2>
               <button
                 onClick={() => setShowAdvFilters(!showAdvFilters)}
                 className={cn(
                   "p-1.5 rounded-lg transition-colors",
-                  showAdvFilters ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"
+                  showAdvFilters
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted",
                 )}
               >
                 <Filter className="w-4 h-4" />
@@ -681,7 +794,11 @@ export default function ConversasPage() {
                     className="flex-1 bg-muted rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
                   >
                     <option value="">Todos atendentes</option>
-                    {apiUsers.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+                    {apiUsers.map((u) => (
+                      <option key={u.id} value={u.name}>
+                        {u.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -695,16 +812,27 @@ export default function ConversasPage() {
                 return (
                   <button
                     key={sf.value}
-                    onClick={() => setStatusFilter(isActive ? "todos" : sf.value)}
+                    onClick={() =>
+                      setStatusFilter(isActive ? "todos" : sf.value)
+                    }
                     className={cn(
                       "flex-1 flex flex-col items-center py-2 px-1 rounded-lg text-center transition-all",
                       isActive
                         ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80",
                     )}
                   >
-                    <span className="text-[11px] font-medium leading-tight">{sf.label}</span>
-                    <span className={cn("text-sm font-bold", isActive ? "text-primary-foreground" : "text-foreground")}>
+                    <span className="text-[11px] font-medium leading-tight">
+                      {sf.label}
+                    </span>
+                    <span
+                      className={cn(
+                        "text-sm font-bold",
+                        isActive
+                          ? "text-primary-foreground"
+                          : "text-foreground",
+                      )}
+                    >
                       {count}
                     </span>
                   </button>
@@ -720,7 +848,7 @@ export default function ConversasPage() {
                 onClick={() => setSelected(conv.id)}
                 className={cn(
                   "w-full flex items-start gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left border-b border-border/40",
-                  selected === conv.id && "bg-muted"
+                  selected === conv.id && "bg-muted",
                 )}
               >
                 <div className="relative flex-shrink-0 mt-0.5">
@@ -729,30 +857,66 @@ export default function ConversasPage() {
                       src={conv.contact_photo}
                       alt={conv.contact_name}
                       className="w-10 h-10 rounded-full object-cover"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = "none";
+                        (
+                          e.target as HTMLImageElement
+                        ).nextElementSibling?.classList.remove("hidden");
+                      }}
                     />
                   ) : null}
-                  <div className={cn(
-                    "w-10 h-10 rounded-full gradient-green flex items-center justify-center text-xs font-bold text-primary-foreground",
-                    conv.contact_photo && "hidden"
-                  )}>
+                  <div
+                    className={cn(
+                      "w-10 h-10 rounded-full gradient-green flex items-center justify-center text-xs font-bold text-primary-foreground",
+                      conv.contact_photo && "hidden",
+                    )}
+                  >
                     {getInitials(conv.contact_name)}
                   </div>
                 </div>
                 <div className="flex-1 min-w-0 flex gap-0">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-sm font-semibold text-foreground truncate">{conv.contact_name}</span>
+                      <span className="text-sm font-semibold text-foreground truncate">
+                        {conv.contact_name}
+                      </span>
                     </div>
                     <p className="text-xs text-muted-foreground truncate mt-0.5 flex items-center gap-1">
                       {(() => {
                         const msg = conv.last_message || "";
                         const lower = msg.toLowerCase().trim();
-                        if (lower === "[audio]" || lower === "[áudio]") return <><Mic className="w-3 h-3 flex-shrink-0" /> Áudio</>;
-                        if (lower === "[imagem]" || lower === "[image]") return <><Image className="w-3 h-3 flex-shrink-0" /> Imagem</>;
-                        if (lower === "[documento]" || lower === "[document]") return <><FileText className="w-3 h-3 flex-shrink-0" /> Documento</>;
-                        if (lower === "[sticker]" || lower === "[figurinha]") return <><Sticker className="w-3 h-3 flex-shrink-0" /> Figurinha</>;
-                        if (lower === "[vídeo]" || lower === "[video]") return <><Play className="w-3 h-3 flex-shrink-0" /> Vídeo</>;
+                        if (lower === "[audio]" || lower === "[áudio]")
+                          return (
+                            <>
+                              <Mic className="w-3 h-3 flex-shrink-0" /> Áudio
+                            </>
+                          );
+                        if (lower === "[imagem]" || lower === "[image]")
+                          return (
+                            <>
+                              <Image className="w-3 h-3 flex-shrink-0" /> Imagem
+                            </>
+                          );
+                        if (lower === "[documento]" || lower === "[document]")
+                          return (
+                            <>
+                              <FileText className="w-3 h-3 flex-shrink-0" />{" "}
+                              Documento
+                            </>
+                          );
+                        if (lower === "[sticker]" || lower === "[figurinha]")
+                          return (
+                            <>
+                              <Sticker className="w-3 h-3 flex-shrink-0" />{" "}
+                              Figurinha
+                            </>
+                          );
+                        if (lower === "[vídeo]" || lower === "[video]")
+                          return (
+                            <>
+                              <Play className="w-3 h-3 flex-shrink-0" /> Vídeo
+                            </>
+                          );
                         return msg || "Sem mensagens";
                       })()}
                     </p>
@@ -770,7 +934,9 @@ export default function ConversasPage() {
                     {conv.attendant_name && (
                       <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                         <User className="w-3 h-3 text-accent-foreground" />
-                        <span className="truncate max-w-[90px]">{conv.attendant_name}</span>
+                        <span className="truncate max-w-[90px]">
+                          {conv.attendant_name}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -778,7 +944,9 @@ export default function ConversasPage() {
               </button>
             ))}
             {filtered.length === 0 && (
-              <div className="py-12 text-center text-muted-foreground text-sm">Nenhuma conversa encontrada</div>
+              <div className="py-12 text-center text-muted-foreground text-sm">
+                Nenhuma conversa encontrada
+              </div>
             )}
           </div>
         </div>
@@ -789,47 +957,89 @@ export default function ConversasPage() {
           <div className="border-b border-border">
             <div className="flex items-center justify-between px-5 py-3">
               <div className="flex items-center gap-3 min-w-0">
-                <button onClick={() => setShowClientPanel(true)} className="flex-shrink-0">
+                <button
+                  onClick={() => setShowClientPanel(true)}
+                  className="flex-shrink-0"
+                >
                   {selectedConv?.contact_photo ? (
                     <img
                       src={selectedConv.contact_photo}
                       alt={selectedConv.contact_name}
                       className="w-10 h-10 rounded-full object-cover"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = "none";
+                        (
+                          e.target as HTMLImageElement
+                        ).nextElementSibling?.classList.remove("hidden");
+                      }}
                     />
                   ) : null}
-                  <div className={cn(
-                    "w-10 h-10 rounded-full gradient-green flex items-center justify-center text-xs font-bold text-primary-foreground",
-                    selectedConv?.contact_photo && "hidden"
-                  )}>
-                    {selectedConv ? getInitials(selectedConv.contact_name) : "?"}
+                  <div
+                    className={cn(
+                      "w-10 h-10 rounded-full gradient-green flex items-center justify-center text-xs font-bold text-primary-foreground",
+                      selectedConv?.contact_photo && "hidden",
+                    )}
+                  >
+                    {selectedConv
+                      ? getInitials(selectedConv.contact_name)
+                      : "?"}
                   </div>
                 </button>
-                <button onClick={() => setShowClientPanel(true)} className="text-left hover:opacity-80 transition-opacity min-w-0">
-                  <p className="text-sm font-semibold text-foreground truncate">{selectedConv?.contact_name || "Selecione"}</p>
+                <button
+                  onClick={() => setShowClientPanel(true)}
+                  className="text-left hover:opacity-80 transition-opacity min-w-0"
+                >
+                  <p className="text-sm font-semibold text-foreground truncate">
+                    {selectedConv?.contact_name || "Selecione"}
+                  </p>
                   <p className="text-xs text-muted-foreground truncate">
                     {selectedConv?.contact_phone}
-                    {selectedConv && <span className="text-muted-foreground/60"> • {selectedConv.attendant_name || "Atendente"}</span>}
+                    {selectedConv && (
+                      <span className="text-muted-foreground/60">
+                        {" "}
+                        • {selectedConv.attendant_name || "Atendente"}
+                      </span>
+                    )}
                   </p>
                 </button>
 
-                {selectedConv && (() => {
-                  const s = selectedConv.status;
-                  const statusConfig = {
-                    atendendo: { label: "Em Atendimento", classes: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" },
-                    aguardando: { label: "Aguardando", classes: "bg-amber-500/10 text-amber-600 border-amber-500/20" },
-                    finalizado: { label: "Finalizado", classes: "bg-muted text-muted-foreground border-border" },
-                  };
-                  const cfg = statusConfig[s] || statusConfig.aguardando;
-                  return (
-                    <span className={cn("ml-2 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border flex-shrink-0", cfg.classes)}>
-                      {cfg.label}
-                    </span>
-                  );
-                })()}
+                {selectedConv &&
+                  (() => {
+                    const s = selectedConv.status;
+                    const statusConfig = {
+                      atendendo: {
+                        label: "Em Atendimento",
+                        classes:
+                          "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+                      },
+                      aguardando: {
+                        label: "Aguardando",
+                        classes:
+                          "bg-amber-500/10 text-amber-600 border-amber-500/20",
+                      },
+                      finalizado: {
+                        label: "Finalizado",
+                        classes: "bg-muted text-muted-foreground border-border",
+                      },
+                    };
+                    const cfg = statusConfig[s] || statusConfig.aguardando;
+                    return (
+                      <span
+                        className={cn(
+                          "ml-2 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border flex-shrink-0",
+                          cfg.classes,
+                        )}
+                      >
+                        {cfg.label}
+                      </span>
+                    );
+                  })()}
               </div>
 
-              <div className="flex items-center gap-2 flex-shrink-0 relative" ref={statusMenuRef}>
+              <div
+                className="flex items-center gap-2 flex-shrink-0 relative"
+                ref={statusMenuRef}
+              >
                 {/* Transfer */}
                 <button
                   onClick={() => {
@@ -844,12 +1054,14 @@ export default function ConversasPage() {
 
                 {/* Status dropdown button */}
                 <button
-                  onClick={() => { setShowStatusMenu(!showStatusMenu); }}
+                  onClick={() => {
+                    setShowStatusMenu(!showStatusMenu);
+                  }}
                   className={cn(
                     "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors",
                     showStatusMenu
                       ? "bg-primary text-primary-foreground border-primary"
-                      : "border-border text-foreground hover:bg-muted"
+                      : "border-border text-foreground hover:bg-muted",
                   )}
                 >
                   Status
@@ -861,10 +1073,14 @@ export default function ConversasPage() {
                   onClick={async () => {
                     if (!selected) return;
                     try {
-                      await apiUpdateConversation(selected, { status: "finalizado" });
+                      await apiUpdateConversation(selected, {
+                        status: "finalizado",
+                      });
                       toast.success("Conversa finalizada");
                       fetchConversations();
-                    } catch { toast.error("Erro ao finalizar"); }
+                    } catch {
+                      toast.error("Erro ao finalizar");
+                    }
                   }}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground text-sm font-medium hover:bg-destructive/90 transition-colors"
                 >
@@ -876,14 +1092,28 @@ export default function ConversasPage() {
                 {showStatusMenu && (
                   <div className="absolute top-full right-0 mt-2 bg-card border border-border rounded-xl shadow-lg z-20 w-52">
                     <div className="px-4 py-3 border-b border-border">
-                      <span className="text-sm font-semibold text-foreground">Alterar Status</span>
+                      <span className="text-sm font-semibold text-foreground">
+                        Alterar Status
+                      </span>
                     </div>
                     <div className="py-1">
-                      {([
-                        { value: "atendendo" as ConversationStatus, label: "Em Atendimento", color: "bg-emerald-500" },
-                        { value: "aguardando" as ConversationStatus, label: "Aguardando", color: "bg-amber-500" },
-                        { value: "finalizado" as ConversationStatus, label: "Finalizado", color: "bg-muted-foreground" },
-                      ]).map((status) => {
+                      {[
+                        {
+                          value: "atendendo" as ConversationStatus,
+                          label: "Em Atendimento",
+                          color: "bg-emerald-500",
+                        },
+                        {
+                          value: "aguardando" as ConversationStatus,
+                          label: "Aguardando",
+                          color: "bg-amber-500",
+                        },
+                        {
+                          value: "finalizado" as ConversationStatus,
+                          label: "Finalizado",
+                          color: "bg-muted-foreground",
+                        },
+                      ].map((status) => {
                         const isActive = selectedConv?.status === status.value;
                         return (
                           <button
@@ -891,19 +1121,32 @@ export default function ConversasPage() {
                             onClick={async () => {
                               if (!selected) return;
                               try {
-                                await apiUpdateConversation(selected, { status: status.value });
+                                await apiUpdateConversation(selected, {
+                                  status: status.value,
+                                });
                                 setShowStatusMenu(false);
                                 fetchConversations();
-                              } catch { toast.error("Erro ao alterar status"); }
+                              } catch {
+                                toast.error("Erro ao alterar status");
+                              }
                             }}
                             className={cn(
                               "w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors",
-                              isActive ? "bg-muted font-medium" : "text-foreground hover:bg-muted/50"
+                              isActive
+                                ? "bg-muted font-medium"
+                                : "text-foreground hover:bg-muted/50",
                             )}
                           >
-                            <div className={cn("w-2.5 h-2.5 rounded-full", status.color)} />
+                            <div
+                              className={cn(
+                                "w-2.5 h-2.5 rounded-full",
+                                status.color,
+                              )}
+                            />
                             {status.label}
-                            {isActive && <Check className="w-3.5 h-3.5 ml-auto text-primary" />}
+                            {isActive && (
+                              <Check className="w-3.5 h-3.5 ml-auto text-primary" />
+                            )}
                           </button>
                         );
                       })}
@@ -928,7 +1171,8 @@ export default function ConversasPage() {
               }
               const el = messagesContainerRef.current;
               if (!el) return;
-              const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+              const distanceFromBottom =
+                el.scrollHeight - el.scrollTop - el.clientHeight;
               isUserNearBottom.current = distanceFromBottom < 150;
             }}
             className="flex-1 overflow-y-auto p-5 space-y-3 bg-muted/30"
@@ -944,84 +1188,144 @@ export default function ConversasPage() {
                 );
               }
               return (
-                <div key={msg.id} className={cn("flex", msg.sent ? "justify-end" : "justify-start")}>
-                  <div className={cn("relative max-w-[65%]", msg.reaction && "mb-3")}>
-                  <div className={cn(
-                    "rounded-2xl text-sm overflow-hidden",
-                    msg.sent
-                      ? "bg-primary text-primary-foreground rounded-br-md"
-                      : "bg-muted text-foreground rounded-bl-md"
-                  )}>
-                    {/* Media content */}
-                    {msg.has_media && msg.media_mimetype && selected && (
-                      <>
-                        {msg.media_mimetype.startsWith("image/") && (
-                          <img
-                            src={getMediaUrl(selected, msg.id)}
-                            alt="Imagem"
-                            className="w-full max-h-80 object-cover cursor-pointer"
-                            loading="lazy"
-                            onLoad={() => { if (isUserNearBottom.current) scrollToBottom(); }}
-                            onClick={() => window.open(getMediaUrl(selected, msg.id), "_blank")}
-                          />
-                        )}
-                        {msg.media_mimetype.startsWith("audio/") && (
-                          <AudioPlayer src={getMediaUrl(selected, msg.id)} sent={msg.sent} />
-                        )}
-                        {msg.media_mimetype.startsWith("video/") && (
-                          <video controls className="w-full max-h-80" preload="none">
-                            <source src={getMediaUrl(selected, msg.id)} type={msg.media_mimetype} />
-                          </video>
-                        )}
-                        {!msg.media_mimetype.startsWith("image/") && !msg.media_mimetype.startsWith("audio/") && !msg.media_mimetype.startsWith("video/") && (
-                          <div className="px-4 pt-2">
-                            <a
-                              href={getMediaUrl(selected, msg.id)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={cn("underline text-xs", msg.sent ? "text-primary-foreground" : "text-foreground")}
-                            >
-                              📎 Baixar arquivo
-                            </a>
-                          </div>
-                        )}
-                      </>
-                    )}
-                    {/* Text content — hide placeholder text like [Image], [Audio] when media exists */}
-                    {msg.text && msg.text !== "[Erro ao descriptografar]" && !(msg.has_media && /^\[(image|imagem|audio|áudio|video|vídeo|document|documento|sticker|figurinha)\]$/i.test(msg.text)) && (
-                      <p className="px-4 py-2.5">{msg.text}</p>
-                    )}
-                    {/* Decryption failure — shown subtly so it's clear it's a system note */}
-                    {msg.text === "[Erro ao descriptografar]" && (
-                      <p className="px-4 py-2.5 italic text-xs opacity-50">Mensagem indisponível</p>
-                    )}
-                    {!msg.text && !msg.has_media && <p className="px-4 py-2.5">&nbsp;</p>}
-                    <div className={cn("flex items-center justify-end gap-1 px-4 pb-2", msg.sent ? "text-primary-foreground/70" : "text-muted-foreground")}>
-                      <span className="text-[10px]">{formatTime(msg.created_at)}</span>
-                      {msg.sent && (
-                        msg.read
-                          ? <CheckCheck className="w-3 h-3 text-blue-400" />
-                          : msg.delivered
-                            ? <CheckCheck className="w-3 h-3" />
-                            : <Check className="w-3 h-3" />
-                      )}
-                    </div>
-                  </div>
-                  {/* Reaction emoji displayed on the message bubble */}
-                  {msg.reaction && (
-                    <div className={cn(
-                      "absolute -bottom-3 px-1.5 py-0.5 rounded-full bg-card border border-border shadow-sm text-sm leading-none select-none",
-                      msg.sent ? "right-2" : "left-2"
-                    )}>
-                      {msg.reaction}
-                    </div>
+                <div
+                  key={msg.id}
+                  className={cn(
+                    "flex",
+                    msg.sent ? "justify-end" : "justify-start",
                   )}
+                >
+                  <div
+                    className={cn(
+                      "relative max-w-[65%]",
+                      msg.reaction && "mb-3",
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "rounded-2xl text-sm overflow-hidden",
+                        msg.sent
+                          ? "bg-primary text-primary-foreground rounded-br-md"
+                          : "bg-muted text-foreground rounded-bl-md",
+                      )}
+                    >
+                      {/* Media content */}
+                      {msg.has_media && msg.media_mimetype && selected && (
+                        <>
+                          {msg.media_mimetype.startsWith("image/") && (
+                            <img
+                              src={getMediaUrl(selected, msg.id)}
+                              alt="Imagem"
+                              className="w-full max-h-80 object-cover cursor-pointer"
+                              loading="lazy"
+                              onLoad={() => {
+                                if (isUserNearBottom.current) scrollToBottom();
+                              }}
+                              onClick={() =>
+                                window.open(
+                                  getMediaUrl(selected, msg.id),
+                                  "_blank",
+                                )
+                              }
+                            />
+                          )}
+                          {msg.media_mimetype.startsWith("audio/") && (
+                            <AudioPlayer
+                              src={getMediaUrl(selected, msg.id)}
+                              sent={msg.sent}
+                            />
+                          )}
+                          {msg.media_mimetype.startsWith("video/") && (
+                            <video
+                              controls
+                              className="w-full max-h-80"
+                              preload="none"
+                            >
+                              <source
+                                src={getMediaUrl(selected, msg.id)}
+                                type={msg.media_mimetype}
+                              />
+                            </video>
+                          )}
+                          {!msg.media_mimetype.startsWith("image/") &&
+                            !msg.media_mimetype.startsWith("audio/") &&
+                            !msg.media_mimetype.startsWith("video/") && (
+                              <div className="px-4 pt-2">
+                                <a
+                                  href={getMediaUrl(selected, msg.id)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={cn(
+                                    "underline text-xs",
+                                    msg.sent
+                                      ? "text-primary-foreground"
+                                      : "text-foreground",
+                                  )}
+                                >
+                                  📎 Baixar arquivo
+                                </a>
+                              </div>
+                            )}
+                        </>
+                      )}
+                      {/* Text content — hide placeholder text like [Image], [Audio] when media exists */}
+                      {msg.text &&
+                        msg.text !== "[Erro ao descriptografar]" &&
+                        !(
+                          msg.has_media &&
+                          /^\[(image|imagem|audio|áudio|video|vídeo|document|documento|sticker|figurinha)\]$/i.test(
+                            msg.text,
+                          )
+                        ) && <p className="px-4 py-2.5">{msg.text}</p>}
+                      {/* Decryption failure — shown subtly so it's clear it's a system note */}
+                      {msg.text === "[Erro ao descriptografar]" && (
+                        <p className="px-4 py-2.5 italic text-xs opacity-50">
+                          Mensagem indisponível
+                        </p>
+                      )}
+                      {!msg.text && !msg.has_media && (
+                        <p className="px-4 py-2.5">&nbsp;</p>
+                      )}
+                      <div
+                        className={cn(
+                          "flex items-center justify-end gap-1 px-4 pb-2",
+                          msg.sent
+                            ? "text-primary-foreground/70"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        <span className="text-[10px]">
+                          {formatTime(msg.created_at)}
+                        </span>
+                        {msg.sent &&
+                          (msg.read ? (
+                            <CheckCheck className="w-3 h-3 text-blue-400" />
+                          ) : msg.delivered ? (
+                            <CheckCheck className="w-3 h-3" />
+                          ) : (
+                            <Check className="w-3 h-3" />
+                          ))}
+                      </div>
+                    </div>
+                    {/* Reaction emoji displayed on the message bubble */}
+                    {msg.reaction && (
+                      <div
+                        className={cn(
+                          "absolute -bottom-3 px-1.5 py-0.5 rounded-full bg-card border border-border shadow-sm text-sm leading-none select-none",
+                          msg.sent ? "right-2" : "left-2",
+                        )}
+                      >
+                        {msg.reaction}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
             })}
             {chatMessages.length === 0 && (
-              <div className="flex justify-center pt-12 text-muted-foreground text-sm">Nenhuma mensagem ainda</div>
+              <div className="flex justify-center pt-12 text-muted-foreground text-sm">
+                Nenhuma mensagem ainda
+              </div>
             )}
             <div ref={messagesEndRef} />
           </div>
@@ -1031,13 +1335,20 @@ export default function ConversasPage() {
             {showAudioList && (
               <div className="absolute bottom-full left-5 right-5 mb-2 bg-card border border-border rounded-xl shadow-lg max-h-60 overflow-y-auto z-10">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                  <span className="text-sm font-semibold text-foreground">Áudios Programados</span>
-                  <button onClick={() => setShowAudioList(false)} className="p-1 rounded hover:bg-muted">
+                  <span className="text-sm font-semibold text-foreground">
+                    Áudios Programados
+                  </span>
+                  <button
+                    onClick={() => setShowAudioList(false)}
+                    className="p-1 rounded hover:bg-muted"
+                  >
                     <X className="w-4 h-4 text-muted-foreground" />
                   </button>
                 </div>
                 {getAudioStore().length === 0 ? (
-                  <p className="px-4 py-6 text-sm text-muted-foreground text-center">Nenhum áudio salvo</p>
+                  <p className="px-4 py-6 text-sm text-muted-foreground text-center">
+                    Nenhum áudio salvo
+                  </p>
                 ) : (
                   getAudioStore().map((audio) => (
                     <button
@@ -1045,7 +1356,12 @@ export default function ConversasPage() {
                       onClick={() => {
                         setShowAudioList(false);
                         if (audio.base64 && audio.mimetype) {
-                          sendMediaMessage(audio.base64, audio.mimetype, "audio", audio.title);
+                          sendMediaMessage(
+                            audio.base64,
+                            audio.mimetype,
+                            "audio",
+                            audio.title,
+                          );
                         } else {
                           toast.info("Áudio sem dados de envio");
                         }
@@ -1056,8 +1372,12 @@ export default function ConversasPage() {
                         <Mic className="w-4 h-4 text-primary" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">{audio.title}</p>
-                        <p className="text-xs text-muted-foreground">{audio.duration}</p>
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {audio.title}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {audio.duration}
+                        </p>
                       </div>
                       <SendIcon className="w-4 h-4 text-primary flex-shrink-0" />
                     </button>
@@ -1068,21 +1388,61 @@ export default function ConversasPage() {
 
             {/* Attach popup */}
             {showAttach && (
-              <div ref={attachMenuRef} className="absolute bottom-full left-5 mb-2 bg-card border border-border rounded-xl shadow-lg z-10 w-56">
+              <div
+                ref={attachMenuRef}
+                className="absolute bottom-full left-5 mb-2 bg-card border border-border rounded-xl shadow-lg z-10 w-56"
+              >
                 <div className="py-2">
                   {[
-                    { icon: Image, label: "Imagem", color: "text-blue-500", action: () => { setShowAttach(false); fileInputRef.current?.click(); } },
-                    { icon: FileText, label: "Documento", color: "text-orange-500", action: () => { setShowAttach(false); document.getElementById("doc-input")?.click(); } },
-                    { icon: Mic, label: "Áudios Programados", color: "text-primary", action: () => { setShowAttach(false); setShowAudioList(true); } },
-                    { icon: Sticker, label: "Figurinha", color: "text-pink-500" },
+                    {
+                      icon: Image,
+                      label: "Imagem",
+                      color: "text-blue-500",
+                      action: () => {
+                        setShowAttach(false);
+                        fileInputRef.current?.click();
+                      },
+                    },
+                    {
+                      icon: FileText,
+                      label: "Documento",
+                      color: "text-orange-500",
+                      action: () => {
+                        setShowAttach(false);
+                        document.getElementById("doc-input")?.click();
+                      },
+                    },
+                    {
+                      icon: Mic,
+                      label: "Áudios Programados",
+                      color: "text-primary",
+                      action: () => {
+                        setShowAttach(false);
+                        setShowAudioList(true);
+                      },
+                    },
+                    {
+                      icon: Sticker,
+                      label: "Figurinha",
+                      color: "text-pink-500",
+                    },
                   ].map((item) => (
                     <button
                       key={item.label}
-                      onClick={() => { if (item.action) { item.action(); } else { setShowAttach(false); toast.info("Funcionalidade em breve"); } }}
+                      onClick={() => {
+                        if (item.action) {
+                          item.action();
+                        } else {
+                          setShowAttach(false);
+                          toast.info("Funcionalidade em breve");
+                        }
+                      }}
                       className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 transition-colors text-left"
                     >
                       <item.icon className={cn("w-5 h-5", item.color)} />
-                      <span className="text-sm font-medium text-foreground">{item.label}</span>
+                      <span className="text-sm font-medium text-foreground">
+                        {item.label}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -1090,20 +1450,73 @@ export default function ConversasPage() {
             )}
 
             {/* Hidden file inputs */}
-            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
-            <input id="doc-input" type="file" accept="*/*" className="hidden" onChange={handleDocumentSelect} />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleImageSelect}
+            />
+            <input
+              id="doc-input"
+              type="file"
+              accept="*/*"
+              className="hidden"
+              onChange={handleDocumentSelect}
+            />
 
             {/* Emoji picker popup */}
             {showEmoji && (
-              <div ref={emojiMenuRef} className="absolute bottom-full right-5 mb-2 bg-card border border-border rounded-xl shadow-lg z-10 p-4 w-72">
+              <div
+                ref={emojiMenuRef}
+                className="absolute bottom-full right-5 mb-2 bg-card border border-border rounded-xl shadow-lg z-10 p-4 w-72"
+              >
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-semibold text-foreground">Emojis</span>
-                  <button onClick={() => setShowEmoji(false)} className="p-1 rounded hover:bg-muted">
+                  <span className="text-sm font-semibold text-foreground">
+                    Emojis
+                  </span>
+                  <button
+                    onClick={() => setShowEmoji(false)}
+                    className="p-1 rounded hover:bg-muted"
+                  >
                     <X className="w-4 h-4 text-muted-foreground" />
                   </button>
                 </div>
                 <div className="grid grid-cols-8 gap-1">
-                  {["😀","😂","😍","🥰","😎","🤩","😢","😡","👍","👎","❤️","🔥","🎉","✅","⭐","💬","📞","📸","🎁","💰","🙏","👋","🤝","💪","🏆","🎯","📌","⏰","📅","💡","🚀","✨"].map((emoji) => (
+                  {[
+                    "😀",
+                    "😂",
+                    "😍",
+                    "🥰",
+                    "😎",
+                    "🤩",
+                    "😢",
+                    "😡",
+                    "👍",
+                    "👎",
+                    "❤️",
+                    "🔥",
+                    "🎉",
+                    "✅",
+                    "⭐",
+                    "💬",
+                    "📞",
+                    "📸",
+                    "🎁",
+                    "💰",
+                    "🙏",
+                    "👋",
+                    "🤝",
+                    "💪",
+                    "🏆",
+                    "🎯",
+                    "📌",
+                    "⏰",
+                    "📅",
+                    "💡",
+                    "🚀",
+                    "✨",
+                  ].map((emoji) => (
                     <button
                       key={emoji}
                       onClick={() => insertEmoji(emoji)}
@@ -1118,34 +1531,83 @@ export default function ConversasPage() {
 
             {isRecording ? (
               <div className="flex gap-2 items-center">
-                <span className="text-xs text-muted-foreground mr-1 cursor-pointer hover:text-foreground transition-colors" onClick={cancelRecording}>Cancelar</span>
-                <button onClick={cancelRecording} className="w-10 h-10 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-destructive hover:border-destructive transition-colors flex-shrink-0" title="Descartar">
+                <span
+                  className="text-xs text-muted-foreground mr-1 cursor-pointer hover:text-foreground transition-colors"
+                  onClick={cancelRecording}
+                >
+                  Cancelar
+                </span>
+                <button
+                  onClick={cancelRecording}
+                  className="w-10 h-10 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-destructive hover:border-destructive transition-colors flex-shrink-0"
+                  title="Descartar"
+                >
                   <Trash2 className="w-4 h-4" />
                 </button>
                 <div className="flex items-center gap-2 px-3">
-                  <div className={cn("w-2.5 h-2.5 rounded-full bg-destructive", !isPaused && "animate-pulse")} />
-                  <span className="text-sm font-mono font-semibold text-foreground min-w-[36px]">{formatRecordTime(recordTime)}</span>
+                  <div
+                    className={cn(
+                      "w-2.5 h-2.5 rounded-full bg-destructive",
+                      !isPaused && "animate-pulse",
+                    )}
+                  />
+                  <span className="text-sm font-mono font-semibold text-foreground min-w-[36px]">
+                    {formatRecordTime(recordTime)}
+                  </span>
                 </div>
-                <RecordingVisualizer stream={audioStreamRef.current} isPaused={isPaused} />
-                <button onClick={isPaused ? resumeRecording : pauseRecording} className="w-10 h-10 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground transition-colors flex-shrink-0" title={isPaused ? "Continuar" : "Pausar"}>
-                  {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+                <RecordingVisualizer
+                  stream={audioStreamRef.current}
+                  isPaused={isPaused}
+                />
+                <button
+                  onClick={isPaused ? resumeRecording : pauseRecording}
+                  className="w-10 h-10 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground transition-colors flex-shrink-0"
+                  title={isPaused ? "Continuar" : "Pausar"}
+                >
+                  {isPaused ? (
+                    <Play className="w-4 h-4" />
+                  ) : (
+                    <Pause className="w-4 h-4" />
+                  )}
                 </button>
-                <button onClick={sendRecording} className="w-10 h-10 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center justify-center flex-shrink-0" title="Enviar áudio">
+                <button
+                  onClick={sendRecording}
+                  className="w-10 h-10 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center justify-center flex-shrink-0"
+                  title="Enviar áudio"
+                >
                   <SendIcon className="w-5 h-5" />
                 </button>
               </div>
             ) : (
               <div className="flex gap-2 items-center">
                 <button
-                  onClick={() => { setShowAttach(!showAttach); setShowEmoji(false); setShowAudioList(false); }}
-                  className={cn("p-2.5 rounded-lg transition-colors flex-shrink-0", showAttach ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted")}
+                  onClick={() => {
+                    setShowAttach(!showAttach);
+                    setShowEmoji(false);
+                    setShowAudioList(false);
+                  }}
+                  className={cn(
+                    "p-2.5 rounded-lg transition-colors flex-shrink-0",
+                    showAttach
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted",
+                  )}
                   title="Anexar"
                 >
                   <Plus className="w-5 h-5" />
                 </button>
                 <button
-                  onClick={() => { setShowEmoji(!showEmoji); setShowAttach(false); setShowAudioList(false); }}
-                  className={cn("p-2.5 rounded-lg transition-colors flex-shrink-0", showEmoji ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted")}
+                  onClick={() => {
+                    setShowEmoji(!showEmoji);
+                    setShowAttach(false);
+                    setShowAudioList(false);
+                  }}
+                  className={cn(
+                    "p-2.5 rounded-lg transition-colors flex-shrink-0",
+                    showEmoji
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted",
+                  )}
                   title="Emoji"
                 >
                   <Smile className="w-5 h-5" />
@@ -1155,10 +1617,19 @@ export default function ConversasPage() {
                   placeholder="Digite uma mensagem..."
                   value={messageText}
                   onChange={(e) => handleMessageInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      sendMessage();
+                    }
+                  }}
                   className="flex-1 bg-muted rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
                 />
-                <button onClick={startRecording} className="p-2.5 rounded-lg transition-colors flex-shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted" title="Gravar áudio">
+                <button
+                  onClick={startRecording}
+                  className="p-2.5 rounded-lg transition-colors flex-shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted"
+                  title="Gravar áudio"
+                >
                   <Mic className="w-5 h-5" />
                 </button>
                 <button
@@ -1168,7 +1639,7 @@ export default function ConversasPage() {
                     "p-2.5 rounded-lg transition-colors flex-shrink-0",
                     isSending || !messageText.trim()
                       ? "bg-muted text-muted-foreground cursor-not-allowed"
-                      : "bg-primary text-primary-foreground hover:bg-primary/90"
+                      : "bg-primary text-primary-foreground hover:bg-primary/90",
                   )}
                 >
                   <SendIcon className="w-5 h-5" />
@@ -1183,7 +1654,16 @@ export default function ConversasPage() {
           open={showClientPanel}
           onOpenChange={setShowClientPanel}
           conversationId={selected || null}
-          contact={selectedConv ? { name: selectedConv.contact_name, phone: selectedConv.contact_phone, avatar: getInitials(selectedConv.contact_name), photo: selectedConv.contact_photo } : null}
+          contact={
+            selectedConv
+              ? {
+                  name: selectedConv.contact_name,
+                  phone: selectedConv.contact_phone,
+                  avatar: getInitials(selectedConv.contact_name),
+                  photo: selectedConv.contact_photo,
+                }
+              : null
+          }
           tags={selectedConv?.tags?.map((t) => t.name) ?? []}
           allTagIds={selectedConv?.tags?.map((t) => t.id) ?? []}
           onToggleTag={async (tagId, tagName) => {
@@ -1207,24 +1687,39 @@ export default function ConversasPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Transferir Conversa</DialogTitle>
-            <DialogDescription>Selecione o destino para transferir esta conversa.</DialogDescription>
+            <DialogDescription>
+              Selecione o destino para transferir esta conversa.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Transferir para</label>
+              <label className="text-sm font-medium text-foreground">
+                Transferir para
+              </label>
               <select
                 value={transferUser}
                 onChange={(e) => setTransferUser(e.target.value)}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <option value="">Selecione um usuário</option>
-                {apiUsers.map(u => <option key={u.id} value={u.id}>{u.name} ({u.role === "admin" ? "Admin" : "Atendente"})</option>)}
+                {apiUsers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.role === "admin" ? "Admin" : "Atendente"})
+                  </option>
+                ))}
               </select>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowTransferDialog(false)}>Cancelar</Button>
-            <Button onClick={handleTransfer} disabled={!transferUser}>Transferir</Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowTransferDialog(false)}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleTransfer} disabled={!transferUser}>
+              Transferir
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
