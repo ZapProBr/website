@@ -1079,7 +1079,6 @@ export default function ConversasPage() {
                   </div>
                   <div className="flex flex-col items-end flex-shrink-0 pl-3 ml-2 gap-1 min-w-[100px]">
                     <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                      <Clock className="w-3 h-3" />
                       <span>{formatTime(conv.updated_at)}</span>
                       {conv.unread_count > 0 && (
                         <span className="w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center ml-1">
