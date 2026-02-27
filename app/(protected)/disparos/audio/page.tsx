@@ -5,6 +5,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { AudioItem, getAudioStore, setAudioStore } from "@/lib/audioStore";
 import { Mic, Plus, Play, Pause, Trash2, Upload, X, Check, CircleStop } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AudioPlayer } from "@/components/conversas/AudioPlayer";
 
 export default function DisparoAudioPage() {
   const [audios, setAudios] = useState<AudioItem[]>(getAudioStore());
@@ -19,6 +20,7 @@ export default function DisparoAudioPage() {
     mimetype: string;
     duration: string;
     fileName: string;
+    blobUrl: string;
   } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -26,6 +28,8 @@ export default function DisparoAudioPage() {
   const audioChunksRef = useRef<Blob[]>([]);
   const audioStreamRef = useRef<MediaStream | null>(null);
   const recordIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Ref so onstop closure always sees the current elapsed seconds
+  const recordTimeRef = useRef(0);
 
   const formatDuration = (seconds: number) => {
     const min = Math.floor(seconds / 60);
@@ -49,7 +53,9 @@ export default function DisparoAudioPage() {
     setAudios(updated);
     setAudioStore(updated);
     setNewTitle("");
+    if (pendingAudio?.blobUrl) URL.revokeObjectURL(pendingAudio.blobUrl);
     setPendingAudio(null);
+    recordTimeRef.current = 0;
     setRecordTime(0);
     setIsRecording(false);
     setIsPaused(false);
@@ -69,6 +75,7 @@ export default function DisparoAudioPage() {
     audioStreamRef.current = null;
     mediaRecorderRef.current = null;
     audioChunksRef.current = [];
+    recordTimeRef.current = 0;
     setIsRecording(false);
     setIsPaused(false);
   };
@@ -79,6 +86,7 @@ export default function DisparoAudioPage() {
       audioStreamRef.current = stream;
       audioChunksRef.current = [];
       setPendingAudio(null);
+      recordTimeRef.current = 0;
       setRecordTime(0);
 
       const recorder = new MediaRecorder(stream, {
@@ -92,6 +100,9 @@ export default function DisparoAudioPage() {
       recorder.onstop = () => {
         const mimeType = recorder.mimeType || "audio/webm;codecs=opus";
         const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        // Use ref so we always get the final elapsed time (state is stale in closures)
+        const finalDuration = formatDuration(recordTimeRef.current);
+        const blobUrl = URL.createObjectURL(blob);
         const reader = new FileReader();
         reader.onload = () => {
           const result = String(reader.result || "");
@@ -99,8 +110,9 @@ export default function DisparoAudioPage() {
           setPendingAudio({
             base64,
             mimetype: mimeType,
-            duration: formatDuration(recordTime),
+            duration: finalDuration,
             fileName: `${newTitle.trim().toLowerCase().replace(/\s+/g, "-") || "audio-programado"}.webm`,
+            blobUrl,
           });
         };
         reader.readAsDataURL(blob);
@@ -113,7 +125,11 @@ export default function DisparoAudioPage() {
       setIsPaused(false);
 
       recordIntervalRef.current = setInterval(() => {
-        setRecordTime((t) => t + 1);
+        setRecordTime((t) => {
+          const next = t + 1;
+          recordTimeRef.current = next;
+          return next;
+        });
       }, 1000);
     } catch {
       cleanupRecording();
@@ -133,7 +149,11 @@ export default function DisparoAudioPage() {
       mediaRecorderRef.current.resume();
       setIsPaused(false);
       recordIntervalRef.current = setInterval(() => {
-        setRecordTime((t) => t + 1);
+        setRecordTime((t) => {
+          const next = t + 1;
+          recordTimeRef.current = next;
+          return next;
+        });
       }, 1000);
     }
   };
@@ -156,26 +176,43 @@ export default function DisparoAudioPage() {
   const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result || "");
-      const base64 = result.includes(",") ? result.split(",", 2)[1] : "";
-      setPendingAudio({
-        base64,
-        mimetype: file.type || "audio/mpeg",
-        duration: "0:00",
-        fileName: file.name,
-      });
-      setIsRecording(false);
-      setIsPaused(false);
-      setRecordTime(0);
+    const blobUrl = URL.createObjectURL(file);
+    // Resolve actual duration before reading base64
+    const tempAudio = new Audio(blobUrl);
+    const readBase64 = (resolvedDuration: string) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = String(reader.result || "");
+        const base64 = result.includes(",") ? result.split(",", 2)[1] : "";
+        if (pendingAudio?.blobUrl) URL.revokeObjectURL(pendingAudio.blobUrl);
+        setPendingAudio({
+          base64,
+          mimetype: file.type || "audio/mpeg",
+          duration: resolvedDuration,
+          fileName: file.name,
+          blobUrl,
+        });
+        setIsRecording(false);
+        setIsPaused(false);
+        recordTimeRef.current = 0;
+        setRecordTime(0);
+      };
+      reader.readAsDataURL(file);
     };
-    reader.readAsDataURL(file);
+    tempAudio.addEventListener("loadedmetadata", () => {
+      const dur = isFinite(tempAudio.duration) ? Math.round(tempAudio.duration) : 0;
+      readBase64(formatDuration(dur));
+    });
+    tempAudio.addEventListener("error", () => readBase64("0:00"));
     e.target.value = "";
   };
 
   useEffect(() => {
-    return () => cleanupRecording();
+    return () => {
+      cleanupRecording();
+      if (pendingAudio?.blobUrl) URL.revokeObjectURL(pendingAudio.blobUrl);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const removeAudio = (id: string) => {
@@ -336,11 +373,17 @@ export default function DisparoAudioPage() {
                 )}
 
                 {pendingAudio && (
-                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-600" />
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-foreground truncate">Áudio pronto para salvar</p>
-                      <p className="text-xs text-muted-foreground truncate">{pendingAudio.fileName} • {pendingAudio.duration}</p>
+                  <div className="space-y-2">
+                    <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 flex items-center gap-2">
+                      <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-foreground truncate">Áudio pronto para salvar</p>
+                        <p className="text-xs text-muted-foreground truncate">{pendingAudio.fileName} • {pendingAudio.duration}</p>
+                      </div>
+                    </div>
+                    {/* Inline preview player */}
+                    <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
+                      <AudioPlayer src={pendingAudio.blobUrl} sent={false} />
                     </div>
                   </div>
                 )}
