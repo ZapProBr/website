@@ -27,6 +27,7 @@ import {
   Clock,
   User,
   MessageCircle,
+  MapPin,
 } from "lucide-react";
 import { getAudioStore } from "@/lib/audioStore";
 import { setTagStore } from "@/lib/tagStore";
@@ -547,6 +548,22 @@ export default function ConversasPage() {
   const formatTime = (iso: string) => {
     const d = new Date(iso);
     return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+  };
+
+  const parseLocation = (
+    raw: string,
+  ): { lat: number; lng: number; name: string | null } | null => {
+    const text = (raw || "").trim();
+    // Matches [Localização:lat|lng] or [Localização:lat|lng|name]
+    const match = text.match(
+      /^\[Localiza[çc][aã]o:(-?[\d.]+)\|(-?[\d.]+)(?:\|([^\]]+))?\]$/i,
+    );
+    if (!match) return null;
+    const lat = parseFloat(match[1]);
+    const lng = parseFloat(match[2]);
+    if (isNaN(lat) || isNaN(lng)) return null;
+    const name = (match[3] || "").trim() || null;
+    return { lat, lng, name };
   };
 
   const parseSharedContact = (
@@ -1381,9 +1398,11 @@ export default function ConversasPage() {
                 msg.message_type === "sticker" ||
                 (msg.has_media && msg.media_mimetype === "image/webp");
               const sharedContact = parseSharedContact(msg.text || "");
+              const sharedLocation = parseLocation(msg.text || "");
               const displayText = (() => {
                 const raw = (msg.text || "").trim();
                 if (sharedContact) return null;
+                if (sharedLocation) return null;
                 if (
                   /^\[Localização\]$/i.test(raw) ||
                   /^\[Localizacao\]$/i.test(raw)
@@ -1488,6 +1507,99 @@ export default function ConversasPage() {
                             )}
                         </>
                       )}
+                      {/* Location card — opens Google Maps */}
+                      {sharedLocation && (
+                        <div className="py-2 px-2">
+                          <a
+                            href={`https://www.google.com/maps?q=${sharedLocation.lat},${sharedLocation.lng}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block no-underline"
+                          >
+                            <div
+                              className={cn(
+                                "w-[230px] rounded-xl overflow-hidden",
+                                msg.sent
+                                  ? "bg-primary/10 border border-primary/20"
+                                  : "bg-background border border-border",
+                              )}
+                            >
+                              {/* Static map thumbnail via OpenStreetMap */}
+                              <div
+                                className={cn(
+                                  "w-full h-28 flex items-center justify-center",
+                                  msg.sent ? "bg-primary/20" : "bg-muted",
+                                )}
+                              >
+                                <div className="flex flex-col items-center gap-1">
+                                  <MapPin
+                                    className={cn(
+                                      "w-8 h-8",
+                                      msg.sent
+                                        ? "text-primary-foreground/80"
+                                        : "text-primary",
+                                    )}
+                                  />
+                                  <span
+                                    className={cn(
+                                      "text-[10px] font-mono",
+                                      msg.sent
+                                        ? "text-primary-foreground/60"
+                                        : "text-muted-foreground",
+                                    )}
+                                  >
+                                    {sharedLocation.lat.toFixed(5)},{" "}
+                                    {sharedLocation.lng.toFixed(5)}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="px-3 pt-2 pb-1">
+                                <p
+                                  className={cn(
+                                    "text-xs font-semibold leading-tight",
+                                    msg.sent
+                                      ? "text-primary-foreground"
+                                      : "text-foreground",
+                                  )}
+                                >
+                                  Localização compartilhada
+                                </p>
+                                {sharedLocation.name && (
+                                  <p
+                                    className={cn(
+                                      "text-[11px] mt-0.5",
+                                      msg.sent
+                                        ? "text-primary-foreground/70"
+                                        : "text-muted-foreground",
+                                    )}
+                                  >
+                                    {sharedLocation.name}
+                                  </p>
+                                )}
+                              </div>
+                              <div
+                                className={cn(
+                                  "border-t mt-1",
+                                  msg.sent
+                                    ? "border-primary/20"
+                                    : "border-border",
+                                )}
+                              >
+                                <p
+                                  className={cn(
+                                    "w-full py-2.5 text-xs font-medium text-center",
+                                    msg.sent
+                                      ? "text-primary-foreground"
+                                      : "text-primary",
+                                  )}
+                                >
+                                  Abrir no Google Maps
+                                </p>
+                              </div>
+                            </div>
+                          </a>
+                        </div>
+                      )}
                       {/* Shared contact card — WhatsApp style */}
                       {sharedContact && (
                         <div className="py-2 px-2">
@@ -1556,6 +1668,7 @@ export default function ConversasPage() {
                       )}
                       {/* Text content — hide placeholder text like [Image], [Audio] when media exists */}
                       {!sharedContact &&
+                        !sharedLocation &&
                         displayText &&
                         msg.text !== "[Erro ao descriptografar]" &&
                         !(
