@@ -53,6 +53,7 @@ import {
   listTags as apiListTags,
   sendTyping as apiSendTyping,
   sendMedia as apiSendMedia,
+  createContact as apiCreateContact,
   getMediaUrl,
   getWebSocketUrl,
   type ConversationItem,
@@ -546,6 +547,34 @@ export default function ConversasPage() {
   const formatTime = (iso: string) => {
     const d = new Date(iso);
     return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+  };
+
+  const parseSharedContact = (
+    raw: string,
+  ): { name: string; phone: string | null } | null => {
+    const text = (raw || "").trim();
+    const match = text.match(
+      /^\[Contato(?:\s*:\s*([^\]|]*?)\s*(?:\|\s*([^\]]+)\s*)?)?\]$/i,
+    );
+    if (!match) return null;
+    const name = (match[1] || "").trim() || "Contato";
+    const phone = (match[2] || "").trim() || null;
+    return { name, phone };
+  };
+
+  const saveSharedContact = async (name: string, phone: string) => {
+    try {
+      await apiCreateContact({ name, phone });
+      toast.success("Contato salvo com sucesso");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Erro ao salvar contato";
+      if (/já existe|already exists|duplicate/i.test(message)) {
+        toast.info("Contato já existe");
+        return;
+      }
+      toast.error(message);
+    }
   };
 
   // ── Media send helper ──────────────────────────────
@@ -1055,14 +1084,12 @@ export default function ConversasPage() {
                             </>
                           );
 
-                        const contactMatch = msg.match(/^\[Contato(?::\s*(.*))?\]$/i);
-                        if (contactMatch)
+                        const sharedContactPreview = parseSharedContact(msg);
+                        if (sharedContactPreview)
                           return (
                             <>
                               <MessageCircle className="w-3 h-3 flex-shrink-0" />
-                              {contactMatch[1]?.trim()
-                                ? `Contato: ${contactMatch[1].trim()}`
-                                : "Contato"}
+                              {`Contato: ${sharedContactPreview.name}`}
                             </>
                           );
 
@@ -1353,13 +1380,10 @@ export default function ConversasPage() {
               const isSticker =
                 msg.message_type === "sticker" ||
                 (msg.has_media && msg.media_mimetype === "image/webp");
+              const sharedContact = parseSharedContact(msg.text || "");
               const displayText = (() => {
                 const raw = (msg.text || "").trim();
-                const contactMatch = raw.match(/^\[Contato(?::\s*(.*))?\]$/i);
-                if (contactMatch) {
-                  const name = contactMatch[1]?.trim();
-                  return name ? `Contato: ${name}` : "Contato compartilhado";
-                }
+                if (sharedContact) return null;
                 if (
                   /^\[Localização\]$/i.test(raw) ||
                   /^\[Localizacao\]$/i.test(raw)
@@ -1464,8 +1488,75 @@ export default function ConversasPage() {
                             )}
                         </>
                       )}
+                      {/* Shared contact card — WhatsApp style */}
+                      {sharedContact && (
+                        <div className="py-2 px-2">
+                          <div
+                            className={cn(
+                              "w-[230px] rounded-xl overflow-hidden",
+                              msg.sent
+                                ? "bg-primary/10 border border-primary/20"
+                                : "bg-background border border-border",
+                            )}
+                          >
+                            <div className="flex flex-col items-center pt-4 pb-3 px-4 gap-2">
+                              <div className="w-16 h-16 rounded-full bg-muted-foreground/20 flex items-center justify-center">
+                                <span className="text-xl font-bold text-muted-foreground select-none">
+                                  {sharedContact.name
+                                    .split(" ")
+                                    .filter(Boolean)
+                                    .slice(0, 2)
+                                    .map((w) => w[0].toUpperCase())
+                                    .join("")}
+                                </span>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-sm font-semibold leading-tight text-foreground">
+                                  {sharedContact.name}
+                                </p>
+                                {sharedContact.phone && (
+                                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                                    {sharedContact.phone}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <div
+                              className={cn(
+                                "border-t",
+                                msg.sent
+                                  ? "border-primary/20"
+                                  : "border-border",
+                              )}
+                            >
+                              <button
+                                onClick={() =>
+                                  sharedContact.phone
+                                    ? void saveSharedContact(
+                                        sharedContact.name,
+                                        sharedContact.phone,
+                                      )
+                                    : undefined
+                                }
+                                disabled={!sharedContact.phone}
+                                className={cn(
+                                  "w-full py-2.5 text-xs font-medium text-center transition-colors",
+                                  sharedContact.phone
+                                    ? "text-primary hover:bg-primary/10 cursor-pointer"
+                                    : "text-muted-foreground cursor-default",
+                                )}
+                              >
+                                {sharedContact.phone
+                                  ? "Adicionar contato"
+                                  : "Sem número"}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       {/* Text content — hide placeholder text like [Image], [Audio] when media exists */}
-                      {displayText &&
+                      {!sharedContact &&
+                        displayText &&
                         msg.text !== "[Erro ao descriptografar]" &&
                         !(
                           msg.has_media &&
