@@ -5,13 +5,16 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import {
   Megaphone, Plus, Clock, CheckCircle2, AlertCircle, X, Type, Mic, Image,
   Users, Tag, Send, Smartphone, FileText, Loader2, Trash2, Play, RefreshCw,
+  Square, Pause, Upload, Library, CircleStop,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   listBroadcasts, createBroadcast, sendBroadcast, deleteBroadcast, getBroadcast,
   listInstances, listTags, listContacts,
+  listSavedAudios, getSavedAudio, createSavedAudio,
   type BroadcastItem, type EvolutionInstance, type Tag as TagType, type Contact,
+  type SavedAudio, type SavedAudioWithData,
 } from "@/lib/api";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
@@ -29,6 +32,10 @@ interface ContentItemDraft {
   message_type: ContentType;
   content: string;
   mediaFile: File | null;
+  // For saved/recorded audio (pre-resolved base64)
+  savedAudioBase64?: string;
+  savedAudioMimetype?: string;
+  savedAudioName?: string;
 }
 
 function newDraftItem(): ContentItemDraft {
@@ -98,6 +105,7 @@ export default function DisparosPage() {
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [selectedInstance, setSelectedInstance] = useState("");
   const [contactSearch, setContactSearch] = useState("");
+  const [savedAudios, setSavedAudios] = useState<SavedAudio[]>([]);
 
   // ── Delete dialog ───────────────────────────────────
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -140,6 +148,13 @@ export default function DisparosPage() {
         setContacts(contactsRes);
       } catch (e) {
         console.error("Erro ao carregar contatos:", e);
+      }
+
+      try {
+        const audiosRes = await listSavedAudios();
+        setSavedAudios(audiosRes);
+      } catch (e) {
+        console.error("Erro ao carregar áudios salvos:", e);
       }
 
       await loadBroadcasts();
@@ -215,7 +230,7 @@ export default function DisparosPage() {
         toast.error(`Item ${i + 1}: digite a mensagem`);
         return;
       }
-      if (it.message_type !== "text" && !it.mediaFile) {
+      if (it.message_type !== "text" && !it.mediaFile && !it.savedAudioBase64) {
         toast.error(`Item ${i + 1}: selecione um arquivo`);
         return;
       }
@@ -241,6 +256,10 @@ export default function DisparosPage() {
             media_base64 = await fileToBase64(it.mediaFile);
             media_mimetype = it.mediaFile.type;
             media_filename = it.mediaFile.name;
+          } else if (it.savedAudioBase64) {
+            media_base64 = it.savedAudioBase64;
+            media_mimetype = it.savedAudioMimetype || "audio/webm;codecs=opus";
+            media_filename = it.savedAudioName || "audio.webm";
           }
           return {
             message_type: it.message_type,
@@ -535,6 +554,7 @@ export default function DisparosPage() {
                   canRemove={items.length > 1}
                   onUpdate={(patch) => updateItem(item.id, patch)}
                   onRemove={() => removeItem(item.id)}
+                  savedAudios={savedAudios}
                 />
               ))}
             </div>
@@ -750,20 +770,138 @@ export default function DisparosPage() {
 }
 
 /* ── Sub-component: single content item editor ──────── */
+type AudioTab = "upload" | "record" | "saved";
+
 function ContentItemEditor({
   item,
   index,
   canRemove,
   onUpdate,
   onRemove,
+  savedAudios,
 }: {
   item: ContentItemDraft;
   index: number;
   canRemove: boolean;
   onUpdate: (patch: Partial<ContentItemDraft>) => void;
   onRemove: () => void;
+  savedAudios: SavedAudio[];
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Audio sub-state ──
+  const [audioTab, setAudioTab] = useState<AudioTab>("upload");
+  const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [recordTime, setRecordTime] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioStreamRef = useRef<MediaStream | null>(null);
+  const recordIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [loadingSavedId, setLoadingSavedId] = useState<string | null>(null);
+
+  const formatTime = (s: number) => {
+    const m = Math.floor(s / 60);
+    const ss = s % 60;
+    return `${m}:${ss.toString().padStart(2, "0")}`;
+  };
+
+  const stopRecordingCleanup = () => {
+    if (recordIntervalRef.current) { clearInterval(recordIntervalRef.current); recordIntervalRef.current = null; }
+    audioStreamRef.current?.getTracks().forEach((t) => t.stop());
+    audioStreamRef.current = null;
+    setIsRecording(false);
+    setIsPaused(false);
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioStreamRef.current = stream;
+      audioChunksRef.current = [];
+      setRecordTime(0);
+
+      const recorder = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
+      mediaRecorderRef.current = recorder;
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+
+      recorder.onstop = () => {
+        const mime = recorder.mimeType || "audio/webm;codecs=opus";
+        const blob = new Blob(audioChunksRef.current, { type: mime });
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          const b64 = result.includes(",") ? result.split(",")[1] : result;
+          onUpdate({
+            mediaFile: null,
+            savedAudioBase64: b64,
+            savedAudioMimetype: mime,
+            savedAudioName: `gravacao-${Date.now()}.webm`,
+          });
+        };
+        reader.readAsDataURL(blob);
+        stopRecordingCleanup();
+      };
+
+      recorder.start(250);
+      setIsRecording(true);
+      setIsPaused(false);
+      recordIntervalRef.current = setInterval(() => setRecordTime((t) => t + 1), 1000);
+    } catch {
+      toast.error("Não foi possível acessar o microfone.");
+    }
+  };
+
+  const pauseRecording = () => {
+    if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.pause();
+    setIsPaused(true);
+    if (recordIntervalRef.current) { clearInterval(recordIntervalRef.current); recordIntervalRef.current = null; }
+  };
+
+  const resumeRecording = () => {
+    if (mediaRecorderRef.current?.state === "paused") mediaRecorderRef.current.resume();
+    setIsPaused(false);
+    recordIntervalRef.current = setInterval(() => setRecordTime((t) => t + 1), 1000);
+  };
+
+  const cancelRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.onstop = null;
+      mediaRecorderRef.current.stop();
+    }
+    audioChunksRef.current = [];
+    setRecordTime(0);
+    stopRecordingCleanup();
+  };
+
+  const finishRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop(); // triggers onstop → sets savedAudioBase64
+    }
+  };
+
+  const pickSavedAudio = async (audio: SavedAudio) => {
+    setLoadingSavedId(audio.id);
+    try {
+      const full = await getSavedAudio(audio.id);
+      onUpdate({
+        mediaFile: null,
+        savedAudioBase64: full.audio_base64,
+        savedAudioMimetype: full.mimetype,
+        savedAudioName: `${audio.title}.webm`,
+      });
+    } catch {
+      toast.error("Erro ao carregar áudio salvo");
+    } finally {
+      setLoadingSavedId(null);
+    }
+  };
+
+  const hasAudio = !!(item.mediaFile || item.savedAudioBase64);
+
+  const clearAudio = () => {
+    onUpdate({ mediaFile: null, savedAudioBase64: undefined, savedAudioMimetype: undefined, savedAudioName: undefined });
+  };
 
   return (
     <div className="border border-border rounded-xl p-3 space-y-2.5 bg-muted/20">
@@ -792,7 +930,7 @@ function ContentItemEditor({
             <button
               key={opt.value}
               type="button"
-              onClick={() => onUpdate({ message_type: opt.value, mediaFile: null })}
+              onClick={() => onUpdate({ message_type: opt.value, mediaFile: null, savedAudioBase64: undefined, savedAudioMimetype: undefined, savedAudioName: undefined })}
               className={cn(
                 "flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all",
                 isActive
@@ -820,8 +958,127 @@ function ContentItemEditor({
         className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all resize-none"
       />
 
-      {/* File upload */}
-      {item.message_type !== "text" && (
+      {/* ── Audio-specific section with tabs ── */}
+      {item.message_type === "audio" && (
+        <>
+          {hasAudio ? (
+            /* Audio already chosen – show name + clear */
+            <div className="flex items-center gap-3 p-2.5 rounded-lg border border-border bg-background">
+              <Mic className="w-4 h-4 text-primary flex-shrink-0" />
+              <span className="text-xs text-foreground truncate flex-1">
+                {item.mediaFile?.name || item.savedAudioName || "Áudio gravado"}
+              </span>
+              <button type="button" onClick={clearAudio} className="text-muted-foreground hover:text-destructive flex-shrink-0">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : isRecording ? (
+            /* Recording in progress */
+            <div className="flex items-center gap-3 p-3 rounded-lg border border-primary/30 bg-primary/5">
+              <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+              <span className="text-sm font-medium text-foreground tabular-nums">{formatTime(recordTime)}</span>
+              <div className="flex-1" />
+              {!isPaused ? (
+                <button type="button" onClick={pauseRecording} className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground" title="Pausar">
+                  <Pause className="w-4 h-4" />
+                </button>
+              ) : (
+                <button type="button" onClick={resumeRecording} className="p-1.5 rounded-lg hover:bg-muted transition-colors text-primary" title="Retomar">
+                  <Play className="w-4 h-4" />
+                </button>
+              )}
+              <button type="button" onClick={cancelRecording} className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive" title="Cancelar">
+                <X className="w-4 h-4" />
+              </button>
+              <button type="button" onClick={finishRecording} className="p-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors" title="Concluir gravação">
+                <CheckCircle2 className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            /* Audio source tabs */
+            <div className="space-y-2">
+              {/* Tab bar */}
+              <div className="flex gap-1 bg-muted rounded-lg p-0.5">
+                {([
+                  { key: "upload" as AudioTab, label: "Arquivo", icon: Upload },
+                  { key: "record" as AudioTab, label: "Gravar", icon: Mic },
+                  { key: "saved" as AudioTab, label: "Salvos", icon: Library },
+                ] as const).map((t) => (
+                  <button
+                    key={t.key}
+                    type="button"
+                    onClick={() => setAudioTab(t.key)}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium transition-all",
+                      audioTab === t.key
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <t.icon className="w-3.5 h-3.5" />
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Tab content */}
+              {audioTab === "upload" && (
+                <>
+                  <input ref={fileInputRef} type="file" accept={getAcceptMime("audio")} className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpdate({ mediaFile: f, savedAudioBase64: undefined, savedAudioMimetype: undefined, savedAudioName: undefined }); }} />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full flex items-center gap-2 py-3 border-2 border-dashed border-border rounded-lg hover:border-primary/30 hover:bg-primary/5 transition-all justify-center"
+                  >
+                    <Upload className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">Selecionar áudio (MP3, OGG, WAV)</span>
+                  </button>
+                </>
+              )}
+
+              {audioTab === "record" && (
+                <button
+                  type="button"
+                  onClick={startRecording}
+                  className="w-full flex items-center gap-2 py-3 border-2 border-dashed border-border rounded-lg hover:border-primary/30 hover:bg-primary/5 transition-all justify-center"
+                >
+                  <Mic className="w-4 h-4 text-red-500" />
+                  <span className="text-xs text-muted-foreground">Clique para começar a gravar</span>
+                </button>
+              )}
+
+              {audioTab === "saved" && (
+                <div className="max-h-40 overflow-y-auto space-y-1 border border-border rounded-lg p-1.5">
+                  {savedAudios.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-3">Nenhum áudio salvo</p>
+                  ) : (
+                    savedAudios.map((a) => (
+                      <button
+                        key={a.id}
+                        type="button"
+                        disabled={loadingSavedId === a.id}
+                        onClick={() => pickSavedAudio(a)}
+                        className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-muted transition-colors text-left"
+                      >
+                        {loadingSavedId === a.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-primary flex-shrink-0" />
+                        ) : (
+                          <Play className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                        )}
+                        <span className="text-xs text-foreground truncate flex-1">{a.title}</span>
+                        {a.duration && <span className="text-[10px] text-muted-foreground tabular-nums">{a.duration}</span>}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* File upload for image / document (unchanged) */}
+      {item.message_type !== "text" && item.message_type !== "audio" && (
         <>
           <input
             ref={fileInputRef}
@@ -835,7 +1092,6 @@ function ContentItemEditor({
           />
           {item.mediaFile ? (
             <div className="flex items-center gap-3 p-2.5 rounded-lg border border-border bg-background">
-              {item.message_type === "audio" && <Mic className="w-4 h-4 text-primary flex-shrink-0" />}
               {item.message_type === "image" && <Image className="w-4 h-4 text-primary flex-shrink-0" />}
               {item.message_type === "document" && <FileText className="w-4 h-4 text-primary flex-shrink-0" />}
               <span className="text-xs text-foreground truncate flex-1">
@@ -855,11 +1111,9 @@ function ContentItemEditor({
               onClick={() => fileInputRef.current?.click()}
               className="w-full flex items-center gap-2 py-3 border-2 border-dashed border-border rounded-lg hover:border-primary/30 hover:bg-primary/5 transition-all justify-center"
             >
-              {item.message_type === "audio" && <Mic className="w-4 h-4 text-muted-foreground" />}
               {item.message_type === "image" && <Image className="w-4 h-4 text-muted-foreground" />}
               {item.message_type === "document" && <FileText className="w-4 h-4 text-muted-foreground" />}
               <span className="text-xs text-muted-foreground">
-                {item.message_type === "audio" && "Selecionar áudio (MP3, OGG, WAV)"}
                 {item.message_type === "image" && "Selecionar imagem (JPG, PNG, WEBP)"}
                 {item.message_type === "document" && "Selecionar documento (PDF, DOC, XLS…)"}
               </span>
