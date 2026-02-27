@@ -1054,6 +1054,25 @@ export default function ConversasPage() {
                               <Play className="w-3 h-3 flex-shrink-0" /> Vídeo
                             </>
                           );
+
+                        const contactMatch = msg.match(/^\[Contato(?::\s*(.*))?\]$/i);
+                        if (contactMatch)
+                          return (
+                            <>
+                              <MessageCircle className="w-3 h-3 flex-shrink-0" />
+                              {contactMatch[1]?.trim()
+                                ? `Contato: ${contactMatch[1].trim()}`
+                                : "Contato"}
+                            </>
+                          );
+
+                        if (lower === "[localização]" || lower === "[localizacao]")
+                          return (
+                            <>
+                              <span className="text-xs">📍</span> Localização
+                            </>
+                          );
+
                         return msg || "Sem mensagens";
                       })()}
                     </p>
@@ -1335,6 +1354,28 @@ export default function ConversasPage() {
               const isSticker =
                 msg.message_type === "sticker" ||
                 (msg.has_media && msg.media_mimetype === "image/webp");
+              const displayText = (() => {
+                const raw = (msg.text || "").trim();
+                const contactMatch = raw.match(/^\[Contato(?::\s*(.*))?\]$/i);
+                if (contactMatch) {
+                  const name = contactMatch[1]?.trim();
+                  return name ? `Contato: ${name}` : "Contato compartilhado";
+                }
+                if (
+                  /^\[Localização\]$/i.test(raw) ||
+                  /^\[Localizacao\]$/i.test(raw)
+                ) {
+                  return "Localização compartilhada";
+                }
+                if (/^\[Video\]$/i.test(raw)) return "Vídeo";
+                if (/^\[Document\]$/i.test(raw)) return "Documento";
+                if (/^\[Image\]$/i.test(raw)) return "Imagem";
+                if (/^\[Audio\]$/i.test(raw)) return "Áudio";
+                if (/^\[Figurinha\]$/i.test(raw) || /^\[Sticker\]$/i.test(raw)) {
+                  return "Figurinha";
+                }
+                return msg.text;
+              })();
               return (
                 <div
                   key={msg.id}
@@ -1425,14 +1466,14 @@ export default function ConversasPage() {
                         </>
                       )}
                       {/* Text content — hide placeholder text like [Image], [Audio] when media exists */}
-                      {msg.text &&
+                      {displayText &&
                         msg.text !== "[Erro ao descriptografar]" &&
                         !(
                           msg.has_media &&
                           /^\[(image|imagem|audio|áudio|video|vídeo|document|documento|sticker|figurinha)\]$/i.test(
                             msg.text,
                           )
-                        ) && <p className="px-4 py-2.5">{msg.text}</p>}
+                        ) && <p className="px-4 py-2.5">{displayText}</p>}
                       {/* Decryption failure — shown subtly so it's clear it's a system note */}
                       {msg.text === "[Erro ao descriptografar]" && (
                         <p className="px-4 py-2.5 italic text-xs opacity-50">
@@ -1748,9 +1789,6 @@ export default function ConversasPage() {
                     <div className="min-w-0">
                       <p className="text-xs font-medium text-foreground truncate">
                         {pendingImage.name}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">
-                        Imagem pronta para envio com legenda
                       </p>
                     </div>
                     <button
