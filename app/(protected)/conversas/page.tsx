@@ -12,6 +12,7 @@ import {
   Filter, Clock, User, MessageCircle,
 } from "lucide-react";
 import { getAudioStore } from "@/lib/audioStore";
+import { setTagStore } from "@/lib/tagStore";
 import { ClientDetailPanel } from "@/components/conversas/ClientDetailPanel";
 import { AudioPlayer } from "@/components/conversas/AudioPlayer";
 import { RecordingVisualizer } from "@/components/conversas/RecordingVisualizer";
@@ -25,11 +26,13 @@ import {
   sendMessage as apiSendMessage,
   markMessagesRead as apiMarkRead,
   updateConversation as apiUpdateConversation,
+  updateConversationTags as apiUpdateConversationTags,
   listUsers as apiListUsers,
   listTags as apiListTags,
   sendTyping as apiSendTyping,
   sendMedia as apiSendMedia,
   getMediaUrl,
+  getWebSocketUrl,
   type ConversationItem,
   type MessageItem,
   type User as ApiUser,
@@ -84,6 +87,28 @@ export default function ConversasPage() {
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTypingSent = useRef<number>(0);
 
+  // Refs for outside-click close of popups
+  const statusMenuRef = useRef<HTMLDivElement | null>(null);
+  const attachMenuRef = useRef<HTMLDivElement | null>(null);
+  const emojiMenuRef = useRef<HTMLDivElement | null>(null);
+
+  // Close popups when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (showStatusMenu && statusMenuRef.current && !statusMenuRef.current.contains(e.target as Node)) {
+        setShowStatusMenu(false);
+      }
+      if (showAttach && attachMenuRef.current && !attachMenuRef.current.contains(e.target as Node)) {
+        setShowAttach(false);
+      }
+      if (showEmoji && emojiMenuRef.current && !emojiMenuRef.current.contains(e.target as Node)) {
+        setShowEmoji(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showStatusMenu, showAttach, showEmoji]);
+
   // Track which conversation we already synced the status filter for (prevent repeated auto-switch on poll)
   const syncedFilterForRef = useRef<string | null>(null);
 
@@ -100,6 +125,15 @@ export default function ConversasPage() {
   const isUserNearBottom = useRef<boolean>(true);
   const isFirstLoad = useRef<boolean>(true);
   const programmaticScroll = useRef<boolean>(false);
+
+  // WebSocket ref
+  const wsRef = useRef<WebSocket | null>(null);
+  const wsReconnectTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Refs so the WS closure always has the latest values
+  const selectedRef = useRef<string>(urlConvId);
+  const fetchMessagesRef = useRef<() => void>(() => {});
+  const fetchConversationsRef = useRef<() => void>(() => {});
 
   // Scroll helper
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
@@ -155,30 +189,96 @@ export default function ConversasPage() {
   // Fetch reference data
   useEffect(() => {
     apiListUsers().then(setApiUsers).catch(() => {});
-    apiListTags().then(setApiTags).catch(() => {});
+    apiListTags().then((tags) => {
+      setApiTags(tags);
+      // Populate shared tagStore so ClientDetailPanel can read ids
+      setTagStore(tags.map((t) => ({ id: t.id, name: t.name, color: t.color })));
+    }).catch(() => {});
   }, []);
 
   // Fetch ALL conversations (no server filter — client filters for display)
   const fetchConversations = useCallback(async () => {
     try {
-      const data = await apiListConversations();
+      const data = await apiListConversations({ limit: 100 });
       setConversations(data);
     } catch { /* silently fail */ }
   }, []);
 
   useEffect(() => { fetchConversations(); }, [fetchConversations]);
 
-  // Poll conversations every 5 seconds for webhook updates
+  // Keep refs always pointing at the latest callbacks
+  useEffect(() => { fetchConversationsRef.current = fetchConversations; }, [fetchConversations]);
+
+  // WebSocket for real-time updates (replaces 5s polling)
   useEffect(() => {
-    const interval = setInterval(fetchConversations, 5000);
+    let reconnectDelay = 2000;
+
+    function connect() {
+      const url = getWebSocketUrl();
+      if (!url.includes("token=")) return; // not authenticated yet
+
+      const ws = new WebSocket(url);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        reconnectDelay = 2000;
+        // Keepalive ping every 25s
+        const pingInterval = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) ws.send("ping");
+        }, 25000);
+        (ws as WebSocket & { _pingInterval?: ReturnType<typeof setInterval> })._pingInterval = pingInterval;
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === "new_message" || data.type === "conversation_update") {
+            // Use refs so we always call the latest version of these callbacks
+            fetchConversationsRef.current();
+            if (data.conversation_id === selectedRef.current) {
+              fetchMessagesRef.current();
+            }
+          }
+        } catch { /* ignore non-JSON (e.g. "pong") */ }
+      };
+
+      ws.onclose = () => {
+        const interval = (ws as WebSocket & { _pingInterval?: ReturnType<typeof setInterval> })._pingInterval;
+        if (interval) clearInterval(interval);
+        // Reconnect with backoff
+        wsReconnectTimeout.current = setTimeout(() => {
+          reconnectDelay = Math.min(reconnectDelay * 2, 30000);
+          connect();
+        }, reconnectDelay);
+      };
+
+      ws.onerror = () => ws.close();
+    }
+
+    connect();
+
+    return () => {
+      if (wsReconnectTimeout.current) clearTimeout(wsReconnectTimeout.current);
+      const ws = wsRef.current;
+      if (ws) {
+        ws.onclose = null; // prevent reconnect on unmount
+        ws.close();
+      }
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fallback polling every 15s (in case WS is not connected)
+  useEffect(() => {
+    const interval = setInterval(fetchConversations, 15000);
     return () => clearInterval(interval);
   }, [fetchConversations]);
 
   // Fetch messages when selected conversation changes
-  const fetchMessages = useCallback(async () => {
+  const fetchMessages = useCallback(async (force = false) => {
     if (!selected) return;
-    // Skip polling while a send is in-flight to preserve optimistic message
-    if (isSending) return;
+    // Skip timer-based polling while a send is in-flight to preserve the optimistic message
+    // But allow WS-triggered fetches (force=true) to still go through
+    if (isSending && !force) return;
     try {
       const msgs = await apiListMessages(selected, { limit: 100 });
       setChatMessages((prev) => {
@@ -191,9 +291,16 @@ export default function ConversasPage() {
         return [...msgs, ...survivingTemps];
       });
     } catch {
-      setChatMessages([]);
+      // Keep previous messages on network error — don't blank the screen
     }
   }, [selected, isSending]);
+
+  // Keep refs up to date whenever selected or fetchMessages changes
+  useEffect(() => { selectedRef.current = selected; }, [selected]);
+  useEffect(() => {
+    // WS handler calls fetchMessagesRef.current(true) to bypass isSending guard
+    fetchMessagesRef.current = () => fetchMessages(true);
+  }, [fetchMessages]);
 
   useEffect(() => {
     if (!selected) return;
@@ -202,12 +309,15 @@ export default function ConversasPage() {
     apiMarkRead(selected).catch(() => {});
   }, [selected, fetchMessages]);
 
-  // Poll messages every 3 seconds for the active conversation
+  // Fallback poll messages every 10s (WS handles real-time delivery)
+  // Use a ref so isSending toggling doesn't recreate the interval
+  const fetchMessagesForPollRef = useRef<() => void>(() => {});
+  useEffect(() => { fetchMessagesForPollRef.current = fetchMessages; }, [fetchMessages]);
   useEffect(() => {
     if (!selected) return;
-    const interval = setInterval(fetchMessages, 3000);
+    const interval = setInterval(() => fetchMessagesForPollRef.current(), 10000);
     return () => clearInterval(interval);
-  }, [selected, fetchMessages]);
+  }, [selected]); // only reset timer on conversation switch, not on every isSending change
 
   // Reset on conversation switch → always scroll to bottom on first load
   useEffect(() => {
@@ -252,9 +362,10 @@ export default function ConversasPage() {
     finalizado: conversations.filter((c) => c.status === "finalizado").length,
   };
 
-  // Filter conversations by status + search
+  // Filter conversations by status + search + attendant
   const filtered = conversations
     .filter((c) => statusFilter === "todos" || c.status === statusFilter)
+    .filter((c) => !filterAttendant || c.attendant_name === filterAttendant)
     .filter((c) => c.contact_name.toLowerCase().includes(search.toLowerCase()));
 
   // Auto-select first conversation when filtered list changes (only if no URL selection)
@@ -425,7 +536,8 @@ export default function ConversasPage() {
     if (!recorder || recorder.state === "inactive") return;
 
     recorder.onstop = () => {
-      const blob = new Blob(audioChunksRef.current, { type: "audio/webm;codecs=opus" });
+      const mimeType = recorder.mimeType || "audio/webm;codecs=opus";
+      const blob = new Blob(audioChunksRef.current, { type: mimeType });
       audioStreamRef.current?.getTracks().forEach((t) => t.stop());
       audioStreamRef.current = null;
 
@@ -433,7 +545,7 @@ export default function ConversasPage() {
       reader.onload = () => {
         const result = reader.result as string;
         const base64 = result.split(",")[1];
-        sendMediaMessage(base64, "audio/ogg; codecs=opus", "audio");
+        sendMediaMessage(base64, mimeType, "audio");
       };
       reader.readAsDataURL(blob);
       audioChunksRef.current = [];
@@ -515,6 +627,7 @@ export default function ConversasPage() {
   };
 
   const handleTransfer = async () => {
+    if (!selected) return;
     if (!transferUser) {
       toast.error("Selecione um usuário");
       return;
@@ -716,7 +829,7 @@ export default function ConversasPage() {
                 })()}
               </div>
 
-              <div className="flex items-center gap-2 flex-shrink-0 relative">
+              <div className="flex items-center gap-2 flex-shrink-0 relative" ref={statusMenuRef}>
                 {/* Transfer */}
                 <button
                   onClick={() => {
@@ -746,6 +859,7 @@ export default function ConversasPage() {
                 {/* Finalizar */}
                 <button
                   onClick={async () => {
+                    if (!selected) return;
                     try {
                       await apiUpdateConversation(selected, { status: "finalizado" });
                       toast.success("Conversa finalizada");
@@ -775,6 +889,7 @@ export default function ConversasPage() {
                           <button
                             key={status.value}
                             onClick={async () => {
+                              if (!selected) return;
                               try {
                                 await apiUpdateConversation(selected, { status: status.value });
                                 setShowStatusMenu(false);
@@ -873,8 +988,12 @@ export default function ConversasPage() {
                       </>
                     )}
                     {/* Text content — hide placeholder text like [Image], [Audio] when media exists */}
-                    {msg.text && !(msg.has_media && /^\[(image|audio|video|document|sticker)\]$/i.test(msg.text)) && (
+                    {msg.text && msg.text !== "[Erro ao descriptografar]" && !(msg.has_media && /^\[(image|imagem|audio|áudio|video|vídeo|document|documento|sticker|figurinha)\]$/i.test(msg.text)) && (
                       <p className="px-4 py-2.5">{msg.text}</p>
+                    )}
+                    {/* Decryption failure — shown subtly so it's clear it's a system note */}
+                    {msg.text === "[Erro ao descriptografar]" && (
+                      <p className="px-4 py-2.5 italic text-xs opacity-50">Mensagem indisponível</p>
                     )}
                     {!msg.text && !msg.has_media && <p className="px-4 py-2.5">&nbsp;</p>}
                     <div className={cn("flex items-center justify-end gap-1 px-4 pb-2", msg.sent ? "text-primary-foreground/70" : "text-muted-foreground")}>
@@ -923,7 +1042,14 @@ export default function ConversasPage() {
                   getAudioStore().map((audio) => (
                     <button
                       key={audio.id}
-                      onClick={() => setShowAudioList(false)}
+                      onClick={() => {
+                        setShowAudioList(false);
+                        if (audio.base64 && audio.mimetype) {
+                          sendMediaMessage(audio.base64, audio.mimetype, "audio", audio.title);
+                        } else {
+                          toast.info("Áudio sem dados de envio");
+                        }
+                      }}
                       className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left"
                     >
                       <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -942,7 +1068,7 @@ export default function ConversasPage() {
 
             {/* Attach popup */}
             {showAttach && (
-              <div className="absolute bottom-full left-5 mb-2 bg-card border border-border rounded-xl shadow-lg z-10 w-56">
+              <div ref={attachMenuRef} className="absolute bottom-full left-5 mb-2 bg-card border border-border rounded-xl shadow-lg z-10 w-56">
                 <div className="py-2">
                   {[
                     { icon: Image, label: "Imagem", color: "text-blue-500", action: () => { setShowAttach(false); fileInputRef.current?.click(); } },
@@ -969,7 +1095,7 @@ export default function ConversasPage() {
 
             {/* Emoji picker popup */}
             {showEmoji && (
-              <div className="absolute bottom-full right-5 mb-2 bg-card border border-border rounded-xl shadow-lg z-10 p-4 w-72">
+              <div ref={emojiMenuRef} className="absolute bottom-full right-5 mb-2 bg-card border border-border rounded-xl shadow-lg z-10 p-4 w-72">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-sm font-semibold text-foreground">Emojis</span>
                   <button onClick={() => setShowEmoji(false)} className="p-1 rounded hover:bg-muted">
@@ -1056,9 +1182,23 @@ export default function ConversasPage() {
         <ClientDetailPanel
           open={showClientPanel}
           onOpenChange={setShowClientPanel}
+          conversationId={selected || null}
           contact={selectedConv ? { name: selectedConv.contact_name, phone: selectedConv.contact_phone, avatar: getInitials(selectedConv.contact_name), photo: selectedConv.contact_photo } : null}
-          tags={[]}
-          onToggleTag={() => {}}
+          tags={selectedConv?.tags?.map((t) => t.name) ?? []}
+          allTagIds={selectedConv?.tags?.map((t) => t.id) ?? []}
+          onToggleTag={async (tagId, tagName) => {
+            if (!selected || !selectedConv) return;
+            const currentIds = selectedConv.tags?.map((t) => t.id) ?? [];
+            const newIds = currentIds.includes(tagId)
+              ? currentIds.filter((id) => id !== tagId)
+              : [...currentIds, tagId];
+            try {
+              await apiUpdateConversationTags(selected, newIds);
+              fetchConversations();
+            } catch {
+              toast.error("Erro ao atualizar etiquetas");
+            }
+          }}
         />
       </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
@@ -12,44 +12,41 @@ import {
   getPipelineStore, upsertLeadToStage, findLeadByName, findLeadStage, removeLeadFromPipeline,
 } from "@/lib/crmStore";
 import {
+  listNotes, createNote, deleteNote, updateConversationTags,
+  type NoteItem,
+} from "@/lib/api";
+import { toast } from "sonner";
+import {
   Tag, StickyNote, BarChart3, CalendarClock, Check, Plus, X,
   Send as SendIcon, ChevronRight, DollarSign, Mail, Building2, Percent,
   Type, Mic, Image, Upload,
 } from "lucide-react";
-
-interface Note {
-  id: string;
-  text: string;
-  date: string;
-}
 
 type ScheduleContentType = "texto" | "audio" | "imagem";
 
 interface ClientDetailPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  conversationId: string | null;
   contact: {
     name: string;
     phone: string;
     avatar: string;
     photo?: string | null;
   } | null;
-  tags: string[];
-  onToggleTag: (tag: string) => void;
+  tags: string[];          // active tag names
+  allTagIds: string[];     // active tag ids for persistence
+  onToggleTag: (tagId: string, tagName: string) => void;
   onCrmUpdate?: () => void;
 }
 
 export function ClientDetailPanel({
-  open, onOpenChange, contact, tags, onToggleTag, onCrmUpdate,
+  open, onOpenChange, conversationId, contact, tags, allTagIds, onToggleTag, onCrmUpdate,
 }: ClientDetailPanelProps) {
-  const [notes, setNotes] = useState<Note[]>([
-    { id: "1", text: "Cliente interessado no plano Premium. Retornar na sexta.", date: "24/02/2026" },
-  ]);
+  const [notes, setNotes] = useState<NoteItem[]>([]);
+  const [notesLoading, setNotesLoading] = useState(false);
   const [newNote, setNewNote] = useState("");
-  const [scheduledMessages, setScheduledMessages] = useState([
-    { id: "1", text: "Lembrete de follow-up", date: "25/02/2026 14:00" },
-    { id: "2", text: "Enviar proposta comercial", date: "27/02/2026 10:00" },
-  ]);
+  const [scheduledMessages, setScheduledMessages] = useState<{ id: string; text: string; date: string }[]>([]);
   const [showScheduleForm, setShowScheduleForm] = useState(false);
   const [scheduleForm, setScheduleForm] = useState({ text: "", date: "", time: "" });
   const [scheduleContentTypes, setScheduleContentTypes] = useState<ScheduleContentType[]>(["texto"]);
@@ -69,8 +66,23 @@ export function ClientDetailPanel({
 
   const stages = initialPipelines.map((p) => ({ id: p.id, title: p.title }));
 
+  // Fetch notes from API
+  const fetchNotes = useCallback(async () => {
+    if (!conversationId) return;
+    setNotesLoading(true);
+    try {
+      const data = await listNotes(conversationId);
+      setNotes(data);
+    } catch {
+      // silently fail
+    } finally {
+      setNotesLoading(false);
+    }
+  }, [conversationId]);
+
   useEffect(() => {
     if (open && contact) {
+      fetchNotes();
       const existingLead = findLeadByName(contact.name);
       if (existingLead) {
         const stage = findLeadStage(existingLead.id);
@@ -90,17 +102,28 @@ export function ClientDetailPanel({
     }
   }, [open, contact]);
 
-  const addNote = () => {
-    if (!newNote.trim()) return;
-    setNotes([
-      { id: Date.now().toString(), text: newNote, date: new Date().toLocaleDateString("pt-BR") },
-      ...notes,
-    ]);
+  const addNote = async () => {
+    if (!newNote.trim() || !conversationId) return;
+    const text = newNote.trim();
     setNewNote("");
+    try {
+      const created = await createNote(conversationId, text);
+      setNotes((prev) => [created, ...prev]);
+    } catch {
+      toast.error("Erro ao salvar anotação");
+      setNewNote(text);
+    }
   };
 
-  const removeNote = (id: string) => {
-    setNotes(notes.filter((n) => n.id !== id));
+  const removeNote = async (id: string) => {
+    if (!conversationId) return;
+    setNotes((prev) => prev.filter((n) => n.id !== id));
+    try {
+      await deleteNote(conversationId, id);
+    } catch {
+      toast.error("Erro ao remover anotação");
+      fetchNotes();
+    }
   };
 
   const handleStageClick = (stageId: string) => {
@@ -191,7 +214,7 @@ export function ClientDetailPanel({
                   return (
                     <button
                       key={tagItem.name}
-                      onClick={() => onToggleTag(tagItem.name)}
+                      onClick={() => onToggleTag(tagItem.id, tagItem.name)}
                       className={cn(
                         "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all border",
                         isActive
@@ -312,16 +335,22 @@ export function ClientDetailPanel({
                 </button>
               </div>
               <div className="space-y-2">
-                {notes.map((note) => (
+                {notesLoading && (
+                  <p className="text-xs text-muted-foreground text-center py-2">Carregando...</p>
+                )}
+                {!notesLoading && notes.map((note) => (
                   <div key={note.id} className="bg-muted/50 rounded-lg px-3 py-2.5 group relative">
                     <p className="text-sm text-foreground pr-6">{note.text}</p>
-                    <span className="text-[10px] text-muted-foreground mt-1 block">{note.date}</span>
+                    <span className="text-[10px] text-muted-foreground mt-1 block">
+                      {note.user_name ? `${note.user_name} • ` : ""}
+                      {new Date(note.created_at).toLocaleDateString("pt-BR")}
+                    </span>
                     <button onClick={() => removeNote(note.id)} className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-muted transition-all">
                       <X className="w-3 h-3 text-muted-foreground" />
                     </button>
                   </div>
                 ))}
-                {notes.length === 0 && (
+                {!notesLoading && notes.length === 0 && (
                   <p className="text-xs text-muted-foreground text-center py-4">Nenhuma anotação</p>
                 )}
               </div>

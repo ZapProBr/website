@@ -1,4 +1,5 @@
 export interface TagItem {
+  id: string;
   name: string;
   color: string;
 }
@@ -14,13 +15,7 @@ export const tagColors = [
   { name: "Ciano", value: "#06b6d4" },
 ];
 
-let tagStore: TagItem[] = [
-  { name: "Lead Quente", color: "#ef4444" },
-  { name: "Cliente VIP", color: "#eab308" },
-  { name: "Suporte", color: "#3b82f6" },
-  { name: "Parceiro", color: "#22c55e" },
-  { name: "Inativo", color: "#8b5cf6" },
-];
+let tagStore: TagItem[] = [];
 
 export const getTagStore = () => tagStore;
 export const setTagStore = (tags: TagItem[]) => { tagStore = tags; };

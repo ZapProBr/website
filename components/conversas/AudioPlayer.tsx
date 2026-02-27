@@ -55,32 +55,26 @@ export function AudioPlayer({ src, sent }: AudioPlayerProps) {
   const animRef = useRef<number>(0);
   const waveformFetched = useRef(false);
 
-  // Fetch audio data and decode to extract real waveform
-  useEffect(() => {
+  // Lazy waveform: only decode audio data the first time the user hits Play.
+  // This avoids downloading every audio file on mount (expensive on long chat histories).
+  const fetchWaveform = useCallback(() => {
     if (waveformFetched.current) return;
     waveformFetched.current = true;
 
-    let cancelled = false;
     const ac = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
 
     fetch(src)
       .then((res) => res.arrayBuffer())
       .then((buf) => ac.decodeAudioData(buf))
       .then((decoded) => {
-        if (!cancelled) {
-          setBars(extractWaveform(decoded, BAR_COUNT));
-        }
+        setBars(extractWaveform(decoded, BAR_COUNT));
       })
       .catch(() => {
-        // On failure keep placeholder bars
+        // Keep placeholder bars on failure
       })
       .finally(() => {
         ac.close().catch(() => {});
       });
-
-    return () => {
-      cancelled = true;
-    };
   }, [src]);
 
   // Update current time via requestAnimationFrame for smooth progress
@@ -136,6 +130,8 @@ export function AudioPlayer({ src, sent }: AudioPlayerProps) {
   const togglePlay = async () => {
     const audio = audioRef.current;
     if (!audio) return;
+    // Lazily decode the waveform on first play (avoids fetching all audio on mount)
+    fetchWaveform();
     if (audio.paused) {
       try { await audio.play(); } catch { /* user gesture needed */ }
     } else {

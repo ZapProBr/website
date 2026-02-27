@@ -35,7 +35,7 @@ async function refreshAccessToken(): Promise<boolean> {
   const rt = getRefreshToken();
   if (!rt) return false;
   try {
-    const res = await fetch(`${BASE}/auth/refresh`, {
+    const res = await fetch(`${BASE}/api/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh_token: rt }),
@@ -99,7 +99,7 @@ export interface LoginResponse {
 }
 
 export async function loginApi(email: string, password: string): Promise<LoginResponse> {
-  const res = await fetch(`${BASE}/auth/login`, {
+  const res = await fetch(`${BASE}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
@@ -123,7 +123,7 @@ export interface UserMe {
 }
 
 export function getMe(): Promise<UserMe> {
-  return api<UserMe>("/auth/me");
+  return api<UserMe>("/api/auth/me");
 }
 
 // ── Users ──────────────────────────────────────────────
@@ -138,20 +138,20 @@ export interface User {
 }
 
 export async function listUsers(): Promise<User[]> {
-  const res = await api<{ users: User[]; total: number }>("/users");
+  const res = await api<{ users: User[]; total: number }>("/api/users");
   return res.users;
 }
 
 export function createUser(data: { email: string; name: string; password: string; role?: string; plan?: string }): Promise<User> {
-  return api<User>("/users", { method: "POST", body: JSON.stringify(data) });
+  return api<User>("/api/users", { method: "POST", body: JSON.stringify(data) });
 }
 
 export function updateUser(id: string, data: Partial<{ name: string; email: string; password: string; role: string; plan: string; is_active: boolean }>): Promise<User> {
-  return api<User>(`/users/${id}`, { method: "PUT", body: JSON.stringify(data) });
+  return api<User>(`/api/users/${id}`, { method: "PUT", body: JSON.stringify(data) });
 }
 
 export function deleteUser(id: string): Promise<void> {
-  return api<void>(`/users/${id}`, { method: "DELETE" });
+  return api<void>(`/api/users/${id}`, { method: "DELETE" });
 }
 
 // ── Tags ───────────────────────────────────────────────
@@ -162,19 +162,19 @@ export interface Tag {
 }
 
 export function listTags(): Promise<Tag[]> {
-  return api<Tag[]>("/tags");
+  return api<Tag[]>("/api/tags");
 }
 
 export function createTag(data: { name: string; color: string }): Promise<Tag> {
-  return api<Tag>("/tags", { method: "POST", body: JSON.stringify(data) });
+  return api<Tag>("/api/tags", { method: "POST", body: JSON.stringify(data) });
 }
 
 export function updateTag(id: string, data: Partial<{ name: string; color: string }>): Promise<Tag> {
-  return api<Tag>(`/tags/${id}`, { method: "PUT", body: JSON.stringify(data) });
+  return api<Tag>(`/api/tags/${id}`, { method: "PUT", body: JSON.stringify(data) });
 }
 
 export function deleteTag(id: string): Promise<void> {
-  return api<void>(`/tags/${id}`, { method: "DELETE" });
+  return api<void>(`/api/tags/${id}`, { method: "DELETE" });
 }
 
 // ── Contacts ───────────────────────────────────────────
@@ -195,24 +195,24 @@ export async function listContacts(params?: { search?: string; tag_id?: string; 
   if (params?.skip) qs.set("skip", String(params.skip));
   if (params?.limit) qs.set("limit", String(params.limit));
   const q = qs.toString();
-  const res = await api<{ contacts: Contact[]; total: number }>(`/contacts${q ? `?${q}` : ""}`);
+  const res = await api<{ contacts: Contact[]; total: number }>(`/api/contacts${q ? `?${q}` : ""}`);
   return res.contacts;
 }
 
 export function createContact(data: { name: string; phone: string; email?: string; notes?: string; tag_ids?: string[] }): Promise<Contact> {
-  return api<Contact>("/contacts", { method: "POST", body: JSON.stringify(data) });
+  return api<Contact>("/api/contacts", { method: "POST", body: JSON.stringify(data) });
 }
 
 export function updateContact(id: string, data: Partial<{ name: string; phone: string; email: string; notes: string; tag_ids: string[] }>): Promise<Contact> {
-  return api<Contact>(`/contacts/${id}`, { method: "PUT", body: JSON.stringify(data) });
+  return api<Contact>(`/api/contacts/${id}`, { method: "PUT", body: JSON.stringify(data) });
 }
 
 export function deleteContact(id: string): Promise<void> {
-  return api<void>(`/contacts/${id}`, { method: "DELETE" });
+  return api<void>(`/api/contacts/${id}`, { method: "DELETE" });
 }
 
 export function bulkDeleteContacts(ids: string[]): Promise<{ deleted: number }> {
-  return api<{ deleted: number }>("/contacts/bulk-delete", { method: "POST", body: JSON.stringify({ ids }) });
+  return api<{ deleted: number }>("/api/contacts/bulk-delete", { method: "POST", body: JSON.stringify({ ids }) });
 }
 
 // ── Conversations ──────────────────────────────────────
@@ -226,11 +226,19 @@ export interface ConversationItem {
   attendant_id: string | null;
   attendant_name: string | null;
   connection_id: string | null;
+  department: string | null;
   last_message: string | null;
   unread_count: number;
   tags: Tag[];
   created_at: string;
   updated_at: string;
+  contact: {
+    id: string;
+    name: string;
+    phone: string;
+    email: string | null;
+    profile_picture_url: string | null;
+  } | null;
 }
 
 export async function listConversations(params?: { status?: string; skip?: number; limit?: number }): Promise<ConversationItem[]> {
@@ -239,20 +247,20 @@ export async function listConversations(params?: { status?: string; skip?: numbe
   if (params?.skip) qs.set("skip", String(params.skip));
   if (params?.limit) qs.set("limit", String(params.limit));
   const q = qs.toString();
-  const res = await api<{ conversations: ConversationItem[]; total: number }>(`/conversations${q ? `?${q}` : ""}`);
+  const res = await api<{ conversations: ConversationItem[]; total: number }>(`/api/conversations${q ? `?${q}` : ""}`);
   return res.conversations;
 }
 
 export function createConversation(data: { contact_id: string; status?: string }): Promise<ConversationItem> {
-  return api<ConversationItem>("/conversations", { method: "POST", body: JSON.stringify(data) });
+  return api<ConversationItem>("/api/conversations", { method: "POST", body: JSON.stringify(data) });
 }
 
 export function updateConversation(id: string, data: Partial<{ status: string; attendant_id: string }>): Promise<ConversationItem> {
-  return api<ConversationItem>(`/conversations/${id}`, { method: "PUT", body: JSON.stringify(data) });
+  return api<ConversationItem>(`/api/conversations/${id}`, { method: "PUT", body: JSON.stringify(data) });
 }
 
 export function updateConversationTags(id: string, tag_ids: string[]): Promise<ConversationItem> {
-  return api<ConversationItem>(`/conversations/${id}/tags`, { method: "PUT", body: JSON.stringify({ tag_ids }) });
+  return api<ConversationItem>(`/api/conversations/${id}/tags`, { method: "PUT", body: JSON.stringify({ tag_ids }) });
 }
 
 // ── Notes ──────────────────────────────────────────────
@@ -266,15 +274,15 @@ export interface NoteItem {
 }
 
 export function listNotes(conversationId: string): Promise<NoteItem[]> {
-  return api<NoteItem[]>(`/conversations/${conversationId}/notes`);
+  return api<NoteItem[]>(`/api/conversations/${conversationId}/notes`);
 }
 
 export function createNote(conversationId: string, text: string): Promise<NoteItem> {
-  return api<NoteItem>(`/conversations/${conversationId}/notes`, { method: "POST", body: JSON.stringify({ text }) });
+  return api<NoteItem>(`/api/conversations/${conversationId}/notes`, { method: "POST", body: JSON.stringify({ text }) });
 }
 
 export function deleteNote(conversationId: string, noteId: string): Promise<void> {
-  return api<void>(`/conversations/${conversationId}/notes/${noteId}`, { method: "DELETE" });
+  return api<void>(`/api/conversations/${conversationId}/notes/${noteId}`, { method: "DELETE" });
 }
 
 // ── Messages ───────────────────────────────────────────
@@ -290,6 +298,7 @@ export interface MessageItem {
   message_type: string;
   has_media: boolean;
   media_mimetype: string | null;
+  media_url: string | null;
   reaction: string | null;
   created_at: string;
 }
@@ -299,35 +308,35 @@ export async function listMessages(conversationId: string, params?: { skip?: num
   if (params?.skip) qs.set("skip", String(params.skip));
   if (params?.limit) qs.set("limit", String(params.limit));
   const q = qs.toString();
-  const res = await api<{ messages: MessageItem[]; total: number }>(`/conversations/${conversationId}/messages${q ? `?${q}` : ""}`);
+  const res = await api<{ messages: MessageItem[]; total: number }>(`/api/conversations/${conversationId}/messages${q ? `?${q}` : ""}`);
   return res.messages;
 }
 
 export function getMediaUrl(conversationId: string, messageId: string): string {
   const token = getAccessToken();
-  return `${BASE}/conversations/${conversationId}/messages/${messageId}/media${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+  return `${BASE}/api/conversations/${conversationId}/messages/${messageId}/media${token ? `?token=${encodeURIComponent(token)}` : ""}`;  
 }
 
 export function sendMessage(conversationId: string, data: { text: string; message_type?: string }): Promise<MessageItem> {
-  return api<MessageItem>(`/conversations/${conversationId}/messages`, { method: "POST", body: JSON.stringify(data) });
+  return api<MessageItem>(`/api/conversations/${conversationId}/messages`, { method: "POST", body: JSON.stringify(data) });
 }
 
 export function sendMedia(
   conversationId: string,
   data: { media_base64: string; media_mimetype: string; caption?: string; message_type?: "image" | "audio" | "document" },
 ): Promise<MessageItem> {
-  return api<MessageItem>(`/conversations/${conversationId}/messages/media`, {
+  return api<MessageItem>(`/api/conversations/${conversationId}/messages/media`, {
     method: "POST",
     body: JSON.stringify(data),
   });
 }
 
 export function markMessagesRead(conversationId: string): Promise<{ updated: number }> {
-  return api<{ updated: number }>(`/conversations/${conversationId}/messages/read`, { method: "PUT" });
+  return api<{ updated: number }>(`/api/conversations/${conversationId}/messages/read`, { method: "PUT" });
 }
 
 export function sendTyping(conversationId: string): Promise<{ ok: boolean }> {
-  return api<{ ok: boolean }>(`/conversations/${conversationId}/messages/typing`, { method: "POST" });
+  return api<{ ok: boolean }>(`/api/conversations/${conversationId}/messages/typing`, { method: "POST" });
 }
 
 // ── Evolution (WhatsApp instances) ─────────────────────
@@ -341,35 +350,42 @@ export interface EvolutionInstance {
 }
 
 export function listInstances(): Promise<EvolutionInstance[]> {
-  return api<EvolutionInstance[]>("/evolution/instances");
+  return api<EvolutionInstance[]>("/api/evolution/instances");
 }
 
 export function createInstance(data: { instanceName: string; number?: string }): Promise<EvolutionInstance> {
-  return api<EvolutionInstance>("/evolution/instances", { method: "POST", body: JSON.stringify(data) });
+  return api<EvolutionInstance>("/api/evolution/instances", { method: "POST", body: JSON.stringify(data) });
 }
 
 export function getQrCode(name: string): Promise<{ base64: string | null; pairingCode: string | null; count: number | null }> {
-  return api<{ base64: string | null; pairingCode: string | null; count: number | null }>(`/evolution/instances/${encodeURIComponent(name)}/qrcode`);
+  return api<{ base64: string | null; pairingCode: string | null; count: number | null }>(`/api/evolution/instances/${encodeURIComponent(name)}/qrcode`);
 }
 
 export function getInstanceStatus(name: string): Promise<{ instanceName: string; status: string }> {
-  return api<{ instanceName: string; status: string }>(`/evolution/instances/${encodeURIComponent(name)}/status`);
+  return api<{ instanceName: string; status: string }>(`/api/evolution/instances/${encodeURIComponent(name)}/status`);
 }
 
 export function restartInstance(name: string): Promise<unknown> {
-  return api<unknown>(`/evolution/instances/${encodeURIComponent(name)}/restart`, { method: "PUT" });
+  return api<unknown>(`/api/evolution/instances/${encodeURIComponent(name)}/restart`, { method: "PUT" });
 }
 
 export function logoutInstance(name: string): Promise<{ ok: boolean }> {
-  return api<{ ok: boolean }>(`/evolution/instances/${encodeURIComponent(name)}/logout`, { method: "DELETE" });
+  return api<{ ok: boolean }>(`/api/evolution/instances/${encodeURIComponent(name)}/logout`, { method: "DELETE" });
 }
 
 export function deleteInstance(name: string): Promise<{ ok: boolean }> {
-  return api<{ ok: boolean }>(`/evolution/instances/${encodeURIComponent(name)}`, { method: "DELETE" });
+  return api<{ ok: boolean }>(`/api/evolution/instances/${encodeURIComponent(name)}`, { method: "DELETE" });
+}
+
+// ── WebSocket ──────────────────────────────────────────
+export function getWebSocketUrl(): string {
+  const token = getAccessToken();
+  const wsBase = BASE.replace(/^http/, "ws");
+  return `${wsBase}/ws${token ? `?token=${encodeURIComponent(token)}` : ""}`;
 }
 
 export function offerCall(instanceName: string, number: string, isVideo = false): Promise<unknown> {
-  return api<unknown>(`/evolution/instances/${encodeURIComponent(instanceName)}/call`, {
+  return api<unknown>(`/api/evolution/instances/${encodeURIComponent(instanceName)}/call`, {
     method: "POST",
     body: JSON.stringify({ number, callDuration: 30, isVideo }),
   });
