@@ -92,20 +92,31 @@ export default function DisparosPage() {
   useEffect(() => {
     (async () => {
       setLoading(true);
+
+      // Load each resource independently so a failure in one doesn't block the others
       try {
-        const [instRes, tagsRes, contactsRes] = await Promise.all([
-          listInstances(),
-          listTags(),
-          listContacts({ limit: 5000 }),
-        ]);
-        setInstances(instRes.filter((i) => i.status === "open"));
+        const instRes = await listInstances();
+        const open = instRes.filter((i) => i.status === "open");
+        setInstances(open);
+        if (open.length > 0) setSelectedInstance(open[0].instanceName);
+      } catch (e) {
+        console.error("Erro ao carregar instâncias:", e);
+      }
+
+      try {
+        const tagsRes = await listTags();
         setTags(tagsRes);
+      } catch (e) {
+        console.error("Erro ao carregar tags:", e);
+      }
+
+      try {
+        const contactsRes = await listContacts({ limit: 5000 });
         setContacts(contactsRes);
-        if (instRes.length > 0) {
-          const open = instRes.find((i) => i.status === "open");
-          if (open) setSelectedInstance(open.instanceName);
-        }
-      } catch {}
+      } catch (e) {
+        console.error("Erro ao carregar contatos:", e);
+      }
+
       await loadBroadcasts();
       setLoading(false);
     })();
