@@ -5,12 +5,13 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import {
   Megaphone, Plus, Clock, CheckCircle2, AlertCircle, X, Type, Mic, Image,
   Users, Tag, Send, Smartphone, FileText, Loader2, Trash2, Play, RefreshCw,
-  Square, Pause, Upload, Library, CircleStop,
+  Square, Pause, Upload, Library, CircleStop, Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   listBroadcasts, createBroadcast, sendBroadcast, deleteBroadcast, getBroadcast,
+  stopBroadcast, updateBroadcast,
   listInstances, listTags, listContacts,
   listSavedAudios, getSavedAudio, createSavedAudio,
   type BroadcastItem, type EvolutionInstance, type Tag as TagType, type Contact,
@@ -37,6 +38,10 @@ interface ContentItemDraft {
   savedAudioBase64?: string;
   savedAudioMimetype?: string;
   savedAudioName?: string;
+  // For edit mode – reuse media from an existing item without re-uploading
+  existingItemId?: string;
+  existingMediaMimetype?: string;
+  existingMediaFilename?: string;
 }
 
 function newDraftItem(): ContentItemDraft {
@@ -107,6 +112,9 @@ export default function DisparosPage() {
   const [selectedInstance, setSelectedInstance] = useState("");
   const [contactSearch, setContactSearch] = useState("");
   const [savedAudios, setSavedAudios] = useState<SavedAudio[]>([]);
+
+  // ── Edit mode ───────────────────────────────────────
+  const [editingBroadcast, setEditingBroadcast] = useState<BroadcastItem | null>(null);
 
   // ── Delete dialog ───────────────────────────────────
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -212,7 +220,32 @@ export default function DisparosPage() {
 
   const openNewModal = () => {
     resetForm();
+    setEditingBroadcast(null);
     if (instances.length > 0) setSelectedInstance(instances[0].instanceName);
+    setShowModal(true);
+  };
+
+  const openEditModal = (broadcast: BroadcastItem) => {
+    setEditingBroadcast(broadcast);
+    setTitle(broadcast.title);
+    setSelectedInstance(broadcast.connection_id);
+    setTargetType(broadcast.target_type as "todos" | "tags" | "manual");
+    setSelectedTags(broadcast.tags?.map((t) => t.id) || []);
+    setSelectedContacts(broadcast.contact_ids || []);
+    setContactSearch("");
+
+    // Map existing items to drafts
+    const drafts: ContentItemDraft[] = broadcast.items.map((it) => ({
+      id: crypto.randomUUID(),
+      message_type: it.message_type as ContentType,
+      content: it.content || "",
+      mediaFile: null,
+      existingItemId: it.id,
+      existingMediaMimetype: it.has_media ? (it.media_mimetype || undefined) : undefined,
+      existingMediaFilename: it.has_media ? (it.media_filename || undefined) : undefined,
+    }));
+
+    setItems(drafts.length > 0 ? drafts : [newDraftItem()]);
     setShowModal(true);
   };
 
@@ -281,10 +314,7 @@ export default function DisparosPage() {
         contact_ids: targetType === "manual" ? selectedContacts : undefined,
       });
 
-      // Immediately send
-      await sendBroadcast(b.id);
-
-      toast.success(`Disparo "${b.title}" criado e iniciado!`);
+      toast.success(`Disparo "${b.title}" criado como rascunho!`);
       setShowModal(false);
       await loadBroadcasts();
     } catch (err: any) {
@@ -309,10 +339,106 @@ export default function DisparosPage() {
   const handleResend = async (id: string) => {
     try {
       await sendBroadcast(id);
-      toast.success("Disparo reiniciado");
+      toast.success("Disparo iniciado");
       await loadBroadcasts();
     } catch (err: any) {
-      toast.error(err.message || "Erro ao reenviar");
+      toast.error(err.message || "Erro ao enviar");
+    }
+  };
+
+  const handleStop = async (id: string) => {
+    try {
+      await stopBroadcast(id);
+      toast.success("Disparo interrompido");
+      await loadBroadcasts();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao parar disparo");
+    }
+  };
+
+  const handleUpdate = async () => {
+    if (!editingBroadcast || !title.trim()) return;
+    if (!selectedInstance) {
+      toast.error("Selecione uma conexão");
+      return;
+    }
+
+    // Validate items
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (it.message_type === "text" && !it.content.trim()) {
+        toast.error(`Item ${i + 1}: digite a mensagem`);
+        return;
+      }
+      if (
+        it.message_type !== "text" &&
+        !it.mediaFile &&
+        !it.savedAudioBase64 &&
+        !it.existingItemId
+      ) {
+        toast.error(`Item ${i + 1}: selecione um arquivo`);
+        return;
+      }
+    }
+
+    if (targetType === "tags" && selectedTags.length === 0) {
+      toast.error("Selecione pelo menos uma tag");
+      return;
+    }
+    if (targetType === "manual" && selectedContacts.length === 0) {
+      toast.error("Selecione pelo menos um contato");
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const builtItems = await Promise.all(
+        items.map(async (it) => {
+          let media_base64: string | undefined;
+          let media_mimetype: string | undefined;
+          let media_filename: string | undefined;
+          let existing_item_id: string | undefined;
+
+          if (it.mediaFile) {
+            media_base64 = await fileToBase64(it.mediaFile);
+            media_mimetype = it.mediaFile.type;
+            media_filename = it.mediaFile.name;
+          } else if (it.savedAudioBase64) {
+            media_base64 = it.savedAudioBase64;
+            media_mimetype = it.savedAudioMimetype || "audio/webm;codecs=opus";
+            media_filename = it.savedAudioName || "audio.webm";
+          } else if (it.existingItemId) {
+            existing_item_id = it.existingItemId;
+          }
+
+          return {
+            message_type: it.message_type,
+            content: it.content || undefined,
+            media_base64,
+            media_mimetype,
+            media_filename,
+            existing_item_id,
+          };
+        })
+      );
+
+      await updateBroadcast(editingBroadcast.id, {
+        title: title.trim(),
+        connection_id: selectedInstance,
+        items: builtItems,
+        target_type: targetType,
+        tag_ids: targetType === "tags" ? selectedTags : undefined,
+        contact_ids: targetType === "manual" ? selectedContacts : undefined,
+      });
+
+      toast.success("Disparo atualizado!");
+      setShowModal(false);
+      setEditingBroadcast(null);
+      await loadBroadcasts();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao atualizar disparo");
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -432,12 +558,30 @@ export default function DisparosPage() {
                       <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-1">
                           {(d.status === "rascunho" || d.status === "erro") && (
+                            <>
+                              <button
+                                onClick={() => handleResend(d.id)}
+                                className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-primary"
+                                title="Enviar"
+                              >
+                                <Play className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => openEditModal(d)}
+                                className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                                title="Editar"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                          {d.status === "enviando" && (
                             <button
-                              onClick={() => handleResend(d.id)}
-                              className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-primary"
-                              title="Enviar"
+                              onClick={() => handleStop(d.id)}
+                              className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-destructive"
+                              title="Parar envio"
                             >
-                              <Play className="w-4 h-4" />
+                              <CircleStop className="w-4 h-4" />
                             </button>
                           )}
                           {d.status !== "enviando" && (
@@ -464,11 +608,11 @@ export default function DisparosPage() {
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Novo Disparo</DialogTitle>
+            <DialogTitle>{editingBroadcast ? "Editar Disparo" : "Novo Disparo"}</DialogTitle>
             <DialogDescription>
-              Crie e envie uma campanha de disparo de mensagens. Você pode adicionar
-              vários itens de conteúdo (texto, áudio, imagem, documento) — cada um será
-              enviado como uma mensagem separada por contato, com intervalo entre si.
+              {editingBroadcast
+                ? "Edite os dados da campanha. As alterações serão salvas como rascunho."
+                : "Crie uma campanha de disparo de mensagens. Você pode adicionar vários itens de conteúdo (texto, áudio, imagem, documento) — cada um será enviado como uma mensagem separada por contato, com intervalo entre si."}
             </DialogDescription>
           </DialogHeader>
 
@@ -733,16 +877,18 @@ export default function DisparosPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowModal(false)} disabled={creating}>
+            <Button variant="outline" onClick={() => { setShowModal(false); setEditingBroadcast(null); }} disabled={creating}>
               Cancelar
             </Button>
-            <Button onClick={handleCreate} disabled={!title.trim() || creating}>
+            <Button onClick={editingBroadcast ? handleUpdate : handleCreate} disabled={!title.trim() || creating}>
               {creating ? (
                 <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+              ) : editingBroadcast ? (
+                <CheckCircle2 className="w-4 h-4 mr-1.5" />
               ) : (
-                <Send className="w-4 h-4 mr-1.5" />
+                <Plus className="w-4 h-4 mr-1.5" />
               )}
-              {creating ? "Criando…" : "Criar e Enviar"}
+              {creating ? "Salvando…" : editingBroadcast ? "Salvar Alterações" : "Criar Disparo"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -898,7 +1044,7 @@ function ContentItemEditor({
     }
   };
 
-  const hasAudio = !!(item.mediaFile || item.savedAudioBase64);
+  const hasAudio = !!(item.mediaFile || item.savedAudioBase64 || (item.existingItemId && item.existingMediaMimetype?.startsWith("audio")));
 
   // Build a playable URL for the selected/recorded audio
   const [audioSrcUrl, setAudioSrcUrl] = useState<string | null>(null);
@@ -925,7 +1071,15 @@ function ContentItemEditor({
   }, [item.mediaFile, item.savedAudioBase64, item.savedAudioMimetype]);
 
   const clearAudio = () => {
-    onUpdate({ mediaFile: null, savedAudioBase64: undefined, savedAudioMimetype: undefined, savedAudioName: undefined });
+    onUpdate({
+      mediaFile: null,
+      savedAudioBase64: undefined,
+      savedAudioMimetype: undefined,
+      savedAudioName: undefined,
+      existingItemId: undefined,
+      existingMediaMimetype: undefined,
+      existingMediaFilename: undefined,
+    });
   };
 
   return (
@@ -1002,6 +1156,22 @@ function ContentItemEditor({
                   {item.mediaFile?.name || item.savedAudioName || "Áudio gravado"}
                 </span>
               </div>
+            </div>
+          ) : hasAudio && item.existingItemId ? (
+            /* Existing audio from server (no base64 available for preview) */
+            <div className="flex items-center gap-3 p-2.5 rounded-lg border border-border bg-background">
+              <Mic className="w-4 h-4 text-primary flex-shrink-0" />
+              <span className="text-xs text-foreground truncate flex-1">
+                {item.existingMediaFilename || "Áudio existente"}
+              </span>
+              <span className="text-[10px] text-muted-foreground">(mantido)</span>
+              <button
+                type="button"
+                onClick={clearAudio}
+                className="text-muted-foreground hover:text-destructive flex-shrink-0"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
           ) : isRecording ? (
             /* Recording in progress */
@@ -1108,7 +1278,7 @@ function ContentItemEditor({
         </>
       )}
 
-      {/* File upload for image / document (unchanged) */}
+      {/* File upload for image / document */}
       {item.message_type !== "text" && item.message_type !== "audio" && (
         <>
           <input
@@ -1118,7 +1288,7 @@ function ContentItemEditor({
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0];
-              if (f) onUpdate({ mediaFile: f });
+              if (f) onUpdate({ mediaFile: f, existingItemId: undefined, existingMediaMimetype: undefined, existingMediaFilename: undefined });
             }}
           />
           {item.mediaFile ? (
@@ -1131,6 +1301,22 @@ function ContentItemEditor({
               <button
                 type="button"
                 onClick={() => onUpdate({ mediaFile: null })}
+                className="text-muted-foreground hover:text-destructive flex-shrink-0"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : item.existingItemId && item.existingMediaFilename ? (
+            <div className="flex items-center gap-3 p-2.5 rounded-lg border border-border bg-background">
+              {item.message_type === "image" && <Image className="w-4 h-4 text-primary flex-shrink-0" />}
+              {item.message_type === "document" && <FileText className="w-4 h-4 text-primary flex-shrink-0" />}
+              <span className="text-xs text-foreground truncate flex-1">
+                {item.existingMediaFilename}
+              </span>
+              <span className="text-[10px] text-muted-foreground">(mantido)</span>
+              <button
+                type="button"
+                onClick={() => onUpdate({ existingItemId: undefined, existingMediaMimetype: undefined, existingMediaFilename: undefined })}
                 className="text-muted-foreground hover:text-destructive flex-shrink-0"
               >
                 <X className="w-3.5 h-3.5" />

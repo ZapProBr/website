@@ -461,6 +461,7 @@ export interface BroadcastItem {
   sent_count: number;
   failed_count: number;
   tags: BroadcastTag[];
+  contact_ids: string[];
   created_at: string;
   updated_at: string;
 }
@@ -500,4 +501,29 @@ export function sendBroadcast(id: string): Promise<BroadcastItem> {
 
 export function deleteBroadcast(id: string): Promise<void> {
   return api<void>(`/api/broadcasts/${id}`, { method: "DELETE" });
+}
+
+export function stopBroadcast(id: string): Promise<BroadcastItem> {
+  return api<BroadcastItem>(`/api/broadcasts/${id}/stop`, { method: "POST" });
+}
+
+export function updateBroadcast(
+  id: string,
+  data: {
+    title?: string;
+    connection_id?: string;
+    items?: {
+      message_type: string;
+      content?: string;
+      media_base64?: string;
+      media_mimetype?: string;
+      media_filename?: string;
+      existing_item_id?: string;
+    }[];
+    target_type?: string;
+    tag_ids?: string[];
+    contact_ids?: string[];
+  },
+): Promise<BroadcastItem> {
+  return api<BroadcastItem>(`/api/broadcasts/${id}`, { method: "PUT", body: JSON.stringify(data) });
 }
