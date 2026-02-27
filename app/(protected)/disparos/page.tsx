@@ -16,6 +16,7 @@ import {
   type BroadcastItem, type EvolutionInstance, type Tag as TagType, type Contact,
   type SavedAudio, type SavedAudioWithData,
 } from "@/lib/api";
+import { AudioPlayer } from "@/components/conversas/AudioPlayer";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
@@ -899,6 +900,30 @@ function ContentItemEditor({
 
   const hasAudio = !!(item.mediaFile || item.savedAudioBase64);
 
+  // Build a playable URL for the selected/recorded audio
+  const [audioSrcUrl, setAudioSrcUrl] = useState<string | null>(null);
+  useEffect(() => {
+    // Revoke previous object URL to avoid memory leaks
+    return () => {
+      if (audioSrcUrl && audioSrcUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(audioSrcUrl);
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audioSrcUrl]);
+
+  useEffect(() => {
+    if (item.mediaFile) {
+      const url = URL.createObjectURL(item.mediaFile);
+      setAudioSrcUrl(url);
+    } else if (item.savedAudioBase64) {
+      const mime = item.savedAudioMimetype || "audio/webm;codecs=opus";
+      setAudioSrcUrl(`data:${mime};base64,${item.savedAudioBase64}`);
+    } else {
+      setAudioSrcUrl(null);
+    }
+  }, [item.mediaFile, item.savedAudioBase64, item.savedAudioMimetype]);
+
   const clearAudio = () => {
     onUpdate({ mediaFile: null, savedAudioBase64: undefined, savedAudioMimetype: undefined, savedAudioName: undefined });
   };
@@ -961,16 +986,22 @@ function ContentItemEditor({
       {/* ── Audio-specific section with tabs ── */}
       {item.message_type === "audio" && (
         <>
-          {hasAudio ? (
-            /* Audio already chosen – show name + clear */
-            <div className="flex items-center gap-3 p-2.5 rounded-lg border border-border bg-background">
-              <Mic className="w-4 h-4 text-primary flex-shrink-0" />
-              <span className="text-xs text-foreground truncate flex-1">
-                {item.mediaFile?.name || item.savedAudioName || "Áudio gravado"}
-              </span>
-              <button type="button" onClick={clearAudio} className="text-muted-foreground hover:text-destructive flex-shrink-0">
-                <X className="w-3.5 h-3.5" />
-              </button>
+          {hasAudio && audioSrcUrl ? (
+            /* Audio already chosen – show player like in conversations */
+            <div className="rounded-lg border border-border bg-background">
+              <div className="flex items-center gap-1">
+                <div className="flex-1 min-w-0">
+                  <AudioPlayer src={audioSrcUrl} sent={false} />
+                </div>
+                <button type="button" onClick={clearAudio} className="p-1.5 mr-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors flex-shrink-0" title="Remover áudio">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="px-3 pb-2 -mt-1">
+                <span className="text-[10px] text-muted-foreground truncate block">
+                  {item.mediaFile?.name || item.savedAudioName || "Áudio gravado"}
+                </span>
+              </div>
             </div>
           ) : isRecording ? (
             /* Recording in progress */
