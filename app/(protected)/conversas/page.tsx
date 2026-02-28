@@ -2335,45 +2335,56 @@ export default function ConversasPage() {
 
       {/* WhatsApp-style image lightbox with zoom/pan */}
       {lightboxImage && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm select-none"
-          onClick={() => { if (!lbDragging.current) setLightboxImage(null); }}
-          onMouseMove={(e) => {
-            if (!lbDragging.current) return;
-            setLbPan((p) => ({ x: p.x + e.movementX, y: p.y + e.movementY }));
-          }}
-          onMouseUp={() => { lbDragging.current = false; }}
-          onMouseLeave={() => { lbDragging.current = false; }}
-          style={{ cursor: lbZoom > 1 ? (lbDragging.current ? "grabbing" : "grab") : "default" }}
-        >
-          <button
-            onClick={(e) => { e.stopPropagation(); setLightboxImage(null); }}
-            className="absolute top-4 right-4 p-2 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors z-10"
-          >
-            <X className="w-6 h-6" />
-          </button>
-          {lbZoom !== 1 && (
-            <span className="absolute top-4 left-4 px-3 py-1 rounded-full bg-black/50 text-white text-xs font-medium z-10">
-              {Math.round(lbZoom * 100)}%
-            </span>
-          )}
-          <img
-            src={lightboxImage}
-            alt="Preview"
-            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
-            draggable={false}
-            style={{
-              transform: `translate(${lbPan.x}px, ${lbPan.y}px) scale(${lbZoom})`,
-              transition: lbDragging.current ? "none" : "transform 0.15s ease-out",
-            }}
-            onClick={(e) => e.stopPropagation()}
-            onDoubleClick={() => {
-              if (lbZoom === 1) { setLbZoom(2.5); } else { setLbZoom(1); setLbPan({ x: 0, y: 0 }); }
-            }}
-            onMouseDown={(e) => {
-              if (lbZoom > 1) { e.preventDefault(); e.stopPropagation(); lbDragging.current = true; }
-            }}
+        <div className="fixed inset-0 z-[100] select-none">
+          {/* Layer 1: Backdrop — always closes on click */}
+          <div
+            className="absolute inset-0 bg-black/90"
+            onClick={() => setLightboxImage(null)}
           />
+
+          {/* Layer 2: Top bar — always visible above image */}
+          <div className="absolute top-0 left-0 right-0 h-14 flex items-center justify-between px-4 z-20">
+            {lbZoom !== 1 ? (
+              <span className="px-3 py-1 rounded-full bg-white/10 text-white text-xs font-medium">
+                {Math.round(lbZoom * 100)}%
+              </span>
+            ) : <span />}
+            <button
+              onClick={() => setLightboxImage(null)}
+              className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+
+          {/* Layer 3: Image container — overflow-hidden clips zoomed content */}
+          <div
+            className="absolute inset-0 flex items-center justify-center overflow-hidden"
+            style={{ cursor: lbZoom > 1 ? (lbDragging.current ? "grabbing" : "grab") : "default" }}
+            onMouseMove={(e) => {
+              if (!lbDragging.current) return;
+              setLbPan((p) => ({ x: p.x + e.movementX, y: p.y + e.movementY }));
+            }}
+            onMouseUp={() => { lbDragging.current = false; }}
+            onMouseLeave={() => { lbDragging.current = false; }}
+          >
+            <img
+              src={lightboxImage}
+              alt="Preview"
+              className="max-w-[90vw] max-h-[85vh] object-contain"
+              draggable={false}
+              style={{
+                transform: `translate(${lbPan.x}px, ${lbPan.y}px) scale(${lbZoom})`,
+                transition: lbDragging.current ? "none" : "transform 0.15s ease-out",
+              }}
+              onDoubleClick={() => {
+                if (lbZoom === 1) { setLbZoom(2.5); } else { setLbZoom(1); setLbPan({ x: 0, y: 0 }); }
+              }}
+              onMouseDown={(e) => {
+                if (lbZoom > 1) { e.preventDefault(); lbDragging.current = true; }
+              }}
+            />
+          </div>
         </div>
       )}
     </AppLayout>
