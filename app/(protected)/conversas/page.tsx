@@ -176,6 +176,23 @@ export default function ConversasPage() {
   const [lbZoom, setLbZoom] = useState(1);
   const [lbPan, setLbPan] = useState({ x: 0, y: 0 });
   const lbDragging = useRef(false);
+  const lbImgRef = useRef<HTMLImageElement>(null);
+
+  // Clamp pan so image edges never go beyond viewport edges (WhatsApp-style)
+  const clampPan = (pan: { x: number; y: number }, zoom: number) => {
+    const img = lbImgRef.current;
+    if (!img || zoom <= 1) return { x: 0, y: 0 };
+    const baseW = img.clientWidth;
+    const baseH = img.clientHeight;
+    const scaledW = baseW * zoom;
+    const scaledH = baseH * zoom;
+    const maxX = Math.max(0, (scaledW - window.innerWidth) / 2);
+    const maxY = Math.max(0, (scaledH - window.innerHeight) / 2);
+    return {
+      x: Math.max(-maxX, Math.min(maxX, pan.x)),
+      y: Math.max(-maxY, Math.min(maxY, pan.y)),
+    };
+  };
 
   // Reset zoom/pan when lightbox opens
   useEffect(() => {
@@ -200,6 +217,12 @@ export default function ConversasPage() {
     window.addEventListener("keydown", handleKey);
     return () => { window.removeEventListener("wheel", handleWheel); window.removeEventListener("keydown", handleKey); };
   }, [lightboxImage]);
+
+  // Re-clamp pan whenever zoom changes so edges stay within viewport
+  useEffect(() => {
+    if (!lightboxImage) return;
+    setLbPan((p) => clampPan(p, lbZoom));
+  }, [lbZoom, lightboxImage]);
 
   // Advanced filters
   const [showAdvFilters, setShowAdvFilters] = useState(false);
@@ -2363,12 +2386,13 @@ export default function ConversasPage() {
             style={{ cursor: lbZoom > 1 ? (lbDragging.current ? "grabbing" : "grab") : "default" }}
             onMouseMove={(e) => {
               if (!lbDragging.current) return;
-              setLbPan((p) => ({ x: p.x + e.movementX, y: p.y + e.movementY }));
+              setLbPan((p) => clampPan({ x: p.x + e.movementX, y: p.y + e.movementY }, lbZoom));
             }}
             onMouseUp={() => { lbDragging.current = false; }}
             onMouseLeave={() => { lbDragging.current = false; }}
           >
             <img
+              ref={lbImgRef}
               src={lightboxImage}
               alt="Preview"
               className="max-w-[90vw] max-h-[85vh] object-contain"
