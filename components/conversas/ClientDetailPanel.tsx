@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
 import {
   Sheet,
@@ -113,6 +113,7 @@ export function ClientDetailPanel({
   const [stages, setStages] = useState<{ id: string; title: string; color: string | null }[]>([]);
   const [existingLeadId, setExistingLeadId] = useState<string | null>(null);
   const [crmLoading, setCrmLoading] = useState(false);
+  const lastContactKey = useRef<string | null>(null);
 
   // Color palette for pipeline stages
   const stageColorPalette = [
@@ -142,14 +143,27 @@ export function ClientDetailPanel({
   }, [conversationId]);
 
   useEffect(() => {
-    if (open && contact) {
-      fetchNotes();
-      setCrmLoading(true);
-      listPipelines()
-        .then((pipelines) => {
-          const sortedPipelines = [...pipelines].sort((a, b) => a.position - b.position);
-          setStages(sortedPipelines.map((p) => ({ id: p.id, title: p.title, color: p.color })));
+    if (!open || !contact) return;
 
+    // Build a stable key for the current contact
+    const contactKey = contact.contact_id || contact.phone || contact.name;
+    const isNewContact = contactKey !== lastContactKey.current;
+
+    // Only fetch notes and reset CRM form when the contact actually changes
+    if (isNewContact) {
+      lastContactKey.current = contactKey;
+      fetchNotes();
+      setShowCrmForm(false);
+    }
+
+    // Always refresh pipeline list, but only reset form state for new contacts
+    setCrmLoading(true);
+    listPipelines()
+      .then((pipelines) => {
+        const sortedPipelines = [...pipelines].sort((a, b) => a.position - b.position);
+        setStages(sortedPipelines.map((p) => ({ id: p.id, title: p.title, color: p.color })));
+
+        if (isNewContact) {
           // Find existing lead by contact_id or contact name
           let foundLead: CRMLead | null = null;
           let foundPipelineId: string | null = null;
@@ -182,13 +196,12 @@ export function ClientDetailPanel({
             setSelectedStage(null);
             setCrmForm({ value: "", email: "", company: "", probability: "", tag: "" });
           }
-        })
-        .catch(() => {
-          toast.error("Erro ao carregar pipelines");
-        })
-        .finally(() => setCrmLoading(false));
-      setShowCrmForm(false);
-    }
+        }
+      })
+      .catch(() => {
+        toast.error("Erro ao carregar pipelines");
+      })
+      .finally(() => setCrmLoading(false));
   }, [open, contact]);
 
   const addNote = async () => {

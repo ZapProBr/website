@@ -728,6 +728,27 @@ export default function ConversasPage() {
 
   const selectedConv = conversations.find((c) => c.id === selected);
 
+  const contactForPanel = useMemo(() => {
+    if (!selectedConv) return null;
+    return {
+      name: selectedConv.contact_name,
+      phone: selectedConv.contact_phone,
+      avatar: selectedConv.contact_name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase(),
+      photo: selectedConv.contact_photo,
+      contact_id: selectedConv.contact_id,
+    };
+  }, [
+    selectedConv?.contact_name,
+    selectedConv?.contact_phone,
+    selectedConv?.contact_photo,
+    selectedConv?.contact_id,
+  ]);
+
   const getInitials = (name: string) =>
     name
       .split(" ")
@@ -2367,17 +2388,7 @@ export default function ConversasPage() {
           open={showClientPanel}
           onOpenChange={setShowClientPanel}
           conversationId={selected || null}
-          contact={
-            selectedConv
-              ? {
-                  name: selectedConv.contact_name,
-                  phone: selectedConv.contact_phone,
-                  avatar: getInitials(selectedConv.contact_name),
-                  photo: selectedConv.contact_photo,
-                  contact_id: selectedConv.contact_id,
-                }
-              : null
-          }
+          contact={contactForPanel}
           tags={selectedConv?.tags?.map((t) => t.name) ?? []}
           allTagIds={selectedConv?.tags?.map((t) => t.id) ?? []}
           onToggleTag={async (tagId, tagName) => {
