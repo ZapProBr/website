@@ -2366,6 +2366,7 @@ export default function ConversasPage() {
                   phone: selectedConv.contact_phone,
                   avatar: getInitials(selectedConv.contact_name),
                   photo: selectedConv.contact_photo,
+                  contact_id: selectedConv.contact_id,
                 }
               : null
           }

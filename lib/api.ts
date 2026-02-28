@@ -728,6 +728,7 @@ export function createLead(data: {
   probability?: number;
   tag?: string;
   assignee?: string;
+  contact_id?: string;
 }): Promise<CRMLead> {
   return api<CRMLead>("/api/crm/leads", {
     method: "POST",

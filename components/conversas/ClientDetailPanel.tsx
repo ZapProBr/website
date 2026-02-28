@@ -11,14 +11,15 @@ import {
 } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getTagStore } from "@/lib/tagStore";
-import { initialPipelines, stageColors } from "@/components/crm/data";
 import {
-  getPipelineStore,
-  upsertLeadToStage,
-  findLeadByName,
-  findLeadStage,
-  removeLeadFromPipeline,
-} from "@/lib/crmStore";
+  listPipelines,
+  createLead as apiCreateLead,
+  updateLead as apiUpdateLead,
+  deleteLead as apiDeleteLead,
+  moveLead as apiMoveLead,
+  type CRMPipeline,
+  type CRMLead,
+} from "@/lib/api";
 import {
   listNotes,
   createNote,
@@ -45,6 +46,7 @@ import {
   Mic,
   Image,
   Upload,
+  Loader2,
 } from "lucide-react";
 
 type ScheduleContentType = "texto" | "audio" | "imagem";
@@ -58,6 +60,7 @@ interface ClientDetailPanelProps {
     phone: string;
     avatar: string;
     photo?: string | null;
+    contact_id?: string | null;
   } | null;
   tags: string[]; // active tag names
   allTagIds: string[]; // active tag ids for persistence
@@ -107,8 +110,22 @@ export function ClientDetailPanel({
     probability: "",
     tag: "",
   });
+  const [stages, setStages] = useState<{ id: string; title: string; color: string | null }[]>([]);
+  const [existingLeadId, setExistingLeadId] = useState<string | null>(null);
+  const [crmLoading, setCrmLoading] = useState(false);
 
-  const stages = initialPipelines.map((p) => ({ id: p.id, title: p.title }));
+  // Color palette for pipeline stages
+  const stageColorPalette = [
+    { bar: "bg-blue-500", bg: "bg-blue-500/8", text: "text-blue-600" },
+    { bar: "bg-cyan-500", bg: "bg-cyan-500/8", text: "text-cyan-600" },
+    { bar: "bg-amber-500", bg: "bg-amber-500/8", text: "text-amber-600" },
+    { bar: "bg-purple-500", bg: "bg-purple-500/8", text: "text-purple-600" },
+    { bar: "bg-emerald-500", bg: "bg-emerald-500/8", text: "text-emerald-600" },
+    { bar: "bg-rose-500", bg: "bg-rose-500/8", text: "text-rose-600" },
+    { bar: "bg-indigo-500", bg: "bg-indigo-500/8", text: "text-indigo-600" },
+    { bar: "bg-orange-500", bg: "bg-orange-500/8", text: "text-orange-600" },
+  ];
+  const getStageColors = (index: number) => stageColorPalette[index % stageColorPalette.length];
 
   // Fetch notes from API
   const fetchNotes = useCallback(async () => {
@@ -127,27 +144,49 @@ export function ClientDetailPanel({
   useEffect(() => {
     if (open && contact) {
       fetchNotes();
-      const existingLead = findLeadByName(contact.name);
-      if (existingLead) {
-        const stage = findLeadStage(existingLead.id);
-        setSelectedStage(stage);
-        setCrmForm({
-          value: existingLead.value?.toString() || "",
-          email: existingLead.email || "",
-          company: existingLead.company || "",
-          probability: existingLead.probability?.toString() || "",
-          tag: existingLead.tag || "",
-        });
-      } else {
-        setSelectedStage(null);
-        setCrmForm({
-          value: "",
-          email: "",
-          company: "",
-          probability: "",
-          tag: "",
-        });
-      }
+      setCrmLoading(true);
+      listPipelines()
+        .then((pipelines) => {
+          const sortedPipelines = [...pipelines].sort((a, b) => a.position - b.position);
+          setStages(sortedPipelines.map((p) => ({ id: p.id, title: p.title, color: p.color })));
+
+          // Find existing lead by contact_id or contact name
+          let foundLead: CRMLead | null = null;
+          let foundPipelineId: string | null = null;
+          for (const pipeline of sortedPipelines) {
+            for (const lead of pipeline.leads) {
+              if (
+                (contact.contact_id && lead.contact_id === contact.contact_id) ||
+                lead.name === contact.name
+              ) {
+                foundLead = lead;
+                foundPipelineId = pipeline.id;
+                break;
+              }
+            }
+            if (foundLead) break;
+          }
+
+          if (foundLead && foundPipelineId) {
+            setExistingLeadId(foundLead.id);
+            setSelectedStage(foundPipelineId);
+            setCrmForm({
+              value: foundLead.value?.toString() || "",
+              email: foundLead.email || "",
+              company: foundLead.company || "",
+              probability: foundLead.probability?.toString() || "",
+              tag: foundLead.tag || "",
+            });
+          } else {
+            setExistingLeadId(null);
+            setSelectedStage(null);
+            setCrmForm({ value: "", email: "", company: "", probability: "", tag: "" });
+          }
+        })
+        .catch(() => {
+          toast.error("Erro ao carregar pipelines");
+        })
+        .finally(() => setCrmLoading(false));
       setShowCrmForm(false);
     }
   }, [open, contact]);
@@ -181,34 +220,58 @@ export function ClientDetailPanel({
     setShowCrmForm(true);
   };
 
-  const handleSaveToPipeline = () => {
+  const handleSaveToPipeline = async () => {
     if (!selectedStage || !contact) return;
-    const existingLead = findLeadByName(contact.name);
-    const leadId = existingLead?.id || `conv-${Date.now()}`;
-    const lead = {
-      id: leadId,
-      name: contact.name,
-      phone: contact.phone,
-      value: parseFloat(crmForm.value) || 0,
-      email: crmForm.email || undefined,
-      company: crmForm.company || undefined,
-      probability: parseInt(crmForm.probability) || 0,
-      tag: crmForm.tag || undefined,
-      lastContact: "Agora",
-    };
-    upsertLeadToStage(selectedStage, lead);
-    setShowCrmForm(false);
-    onCrmUpdate?.();
+    setCrmLoading(true);
+    try {
+      const leadData = {
+        name: contact.name,
+        phone: contact.phone,
+        value: parseFloat(crmForm.value) || 0,
+        email: crmForm.email || undefined,
+        company: crmForm.company || undefined,
+        probability: parseInt(crmForm.probability) || 0,
+        tag: crmForm.tag || undefined,
+      };
+
+      if (existingLeadId) {
+        // Move to new stage if changed, then update fields
+        await apiMoveLead(existingLeadId, { pipeline_id: selectedStage, position: 0 });
+        await apiUpdateLead(existingLeadId, leadData);
+      } else {
+        // Create new lead
+        const created = await apiCreateLead({
+          pipeline_id: selectedStage,
+          ...leadData,
+          contact_id: contact.contact_id || undefined,
+        });
+        setExistingLeadId(created.id);
+      }
+      setShowCrmForm(false);
+      toast.success("Lead salvo no pipeline");
+      onCrmUpdate?.();
+    } catch {
+      toast.error("Erro ao salvar lead");
+    } finally {
+      setCrmLoading(false);
+    }
   };
 
-  const handleRemoveFromPipeline = () => {
-    if (!contact) return;
-    const existingLead = findLeadByName(contact.name);
-    if (existingLead) {
-      removeLeadFromPipeline(existingLead.id);
+  const handleRemoveFromPipeline = async () => {
+    if (!existingLeadId) return;
+    setCrmLoading(true);
+    try {
+      await apiDeleteLead(existingLeadId);
+      setExistingLeadId(null);
       setSelectedStage(null);
       setShowCrmForm(false);
+      setCrmForm({ value: "", email: "", company: "", probability: "", tag: "" });
+      toast.success("Lead removido do pipeline");
       onCrmUpdate?.();
+    } catch {
+      toast.error("Erro ao remover lead");
+    } finally {
+      setCrmLoading(false);
     }
   };
 
@@ -304,10 +367,11 @@ export function ClientDetailPanel({
                     Classificação CRM
                   </h3>
                 </div>
-                {currentStageName && (
+                {currentStageName && existingLeadId && (
                   <button
                     onClick={handleRemoveFromPipeline}
-                    className="text-[11px] text-muted-foreground hover:text-destructive transition-colors"
+                    disabled={crmLoading}
+                    className="text-[11px] text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
                   >
                     Remover
                   </button>
@@ -343,50 +407,56 @@ export function ClientDetailPanel({
                 </div>
               )}
 
-              <div className="space-y-1">
-                {stages.map((stage) => {
-                  const colors = stageColors[stage.id];
-                  const isSelected = selectedStage === stage.id;
-                  return (
-                    <button
-                      key={stage.id}
-                      onClick={() => handleStageClick(stage.id)}
-                      className={cn(
-                        "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all text-left group",
-                        isSelected
-                          ? `${colors?.bg || "bg-primary/10"} font-medium ring-1 ring-primary/20`
-                          : "text-foreground hover:bg-muted",
-                      )}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <div
+              {crmLoading && stages.length === 0 ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {stages.map((stage, idx) => {
+                    const colors = getStageColors(idx);
+                    const isSelected = selectedStage === stage.id;
+                    return (
+                      <button
+                        key={stage.id}
+                        onClick={() => handleStageClick(stage.id)}
+                        disabled={crmLoading}
+                        className={cn(
+                          "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all text-left group",
+                          isSelected
+                            ? `${colors.bg} font-medium ring-1 ring-primary/20`
+                            : "text-foreground hover:bg-muted",
+                          crmLoading && "opacity-50 cursor-not-allowed",
+                        )}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div
+                            className={cn(
+                              "w-2.5 h-2.5 rounded-full",
+                              isSelected
+                                ? colors.bar
+                                : "bg-muted-foreground/20",
+                            )}
+                          />
+                          <span
+                            className={isSelected ? colors.text : ""}
+                          >
+                            {stage.title}
+                          </span>
+                        </div>
+                        <ChevronRight
                           className={cn(
-                            "w-2.5 h-2.5 rounded-full",
+                            "w-3.5 h-3.5 transition-opacity",
                             isSelected
-                              ? colors?.bar || "bg-primary"
-                              : "bg-muted-foreground/20",
+                              ? "opacity-60"
+                              : "opacity-0 group-hover:opacity-40",
                           )}
                         />
-                        <span
-                          className={
-                            isSelected ? colors?.text || "text-primary" : ""
-                          }
-                        >
-                          {stage.title}
-                        </span>
-                      </div>
-                      <ChevronRight
-                        className={cn(
-                          "w-3.5 h-3.5 transition-opacity",
-                          isSelected
-                            ? "opacity-60"
-                            : "opacity-0 group-hover:opacity-40",
-                        )}
-                      />
-                    </button>
-                  );
-                })}
-              </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
 
               {showCrmForm && selectedStage && (
                 <div className="mt-3 p-4 rounded-lg border border-border bg-card space-y-3 animate-in slide-in-from-top-2 duration-200">
@@ -467,9 +537,14 @@ export function ClientDetailPanel({
                     </button>
                     <button
                       onClick={handleSaveToPipeline}
-                      className="flex-1 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+                      disabled={crmLoading}
+                      className="flex-1 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
                     >
-                      Salvar no Pipeline
+                      {crmLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+                      ) : (
+                        "Salvar no Pipeline"
+                      )}
                     </button>
                   </div>
                 </div>
