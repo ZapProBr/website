@@ -1,10 +1,9 @@
 "use client";
 
 import { AppLayout } from "@/components/AppLayout";
-import { useState, useRef, useCallback, DragEvent } from "react";
-import { Plus, Search, SlidersHorizontal } from "lucide-react";
+import { useState, useRef, useCallback, useEffect, DragEvent } from "react";
+import { Plus, Search, SlidersHorizontal, Loader2 } from "lucide-react";
 import { Pipeline, Lead } from "@/components/crm/types";
-import { getPipelineStore, setPipelineStore } from "@/lib/crmStore";
 import { PipelineColumn } from "@/components/crm/PipelineColumn";
 import { toast } from "sonner";
 import {
@@ -14,9 +13,63 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import {
+  listPipelines as fetchPipelines,
+  createPipeline as apiCreatePipeline,
+  updatePipeline as apiUpdatePipeline,
+  deletePipeline as apiDeletePipeline,
+  clearPipeline as apiClearPipeline,
+  reorderPipelines as apiReorderPipelines,
+  createLead as apiCreateLead,
+  moveLead as apiMoveLead,
+  CRMPipeline,
+  CRMLead,
+} from "@/lib/api";
+
+/** Convert API pipeline to the local Pipeline shape used by the UI */
+function toLocalPipeline(p: CRMPipeline): Pipeline {
+  return {
+    id: p.id,
+    title: p.title,
+    color: p.color,
+    position: p.position,
+    leads: p.leads.map((l) => toLocalLead(l)),
+  };
+}
+
+function toLocalLead(l: CRMLead): Lead {
+  return {
+    id: l.id,
+    pipeline_id: l.pipeline_id,
+    contact_id: l.contact_id,
+    name: l.name,
+    phone: l.phone,
+    email: l.email ?? undefined,
+    value: l.value,
+    lastContact: timeSince(l.updated_at),
+    tag: l.tag ?? undefined,
+    company: l.company ?? undefined,
+    probability: l.probability,
+    assignee: l.assignee ?? undefined,
+    createdAt: l.created_at,
+    notes: l.notes,
+    position: l.position,
+  };
+}
+
+function timeSince(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `Há ${mins}min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `Há ${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `Há ${days}d`;
+}
 
 export default function CRMPage() {
-  const [pipelines, setPipelines] = useState<Pipeline[]>(getPipelineStore());
+  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
+  const [loading, setLoading] = useState(true);
   const [draggedLead, setDraggedLead] = useState<{ lead: Lead; fromColumnId: string } | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -39,17 +92,22 @@ export default function CRMPage() {
   const [filterValueMin, setFilterValueMin] = useState("");
   const [filterValueMax, setFilterValueMax] = useState("");
 
-  const updatePipelines = useCallback((updater: (prev: Pipeline[]) => Pipeline[]) => {
-    setPipelines((prev) => {
-      const next = updater(prev);
-      setPipelineStore(next);
-      return next;
-    });
+  // ─── Load from API ─────────────────────────────────
+  const loadPipelines = useCallback(async () => {
+    try {
+      const data = await fetchPipelines();
+      setPipelines(data.map(toLocalPipeline));
+    } catch (err) {
+      console.error("Failed to load pipelines", err);
+      toast.error("Erro ao carregar pipelines");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const refreshFromStore = useCallback(() => {
-    setPipelines([...getPipelineStore()]);
-  }, []);
+  useEffect(() => {
+    loadPipelines();
+  }, [loadPipelines]);
 
   const filteredPipelines = pipelines.map((p) => ({
     ...p,
@@ -98,19 +156,29 @@ export default function CRMPage() {
     }
   };
   const handleDragOver = (e: DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; };
-  const handleDrop = (e: DragEvent, toColumnId: string) => {
+  const handleDrop = async (e: DragEvent, toColumnId: string) => {
     e.preventDefault();
     if (!draggedLead || draggedLead.fromColumnId === toColumnId) return;
-    updatePipelines((prev) =>
+
+    // Optimistic update
+    setPipelines((prev) =>
       prev.map((p) => {
         if (p.id === draggedLead.fromColumnId) return { ...p, leads: p.leads.filter((l) => l.id !== draggedLead.lead.id) };
-        if (p.id === toColumnId) return { ...p, leads: [...p.leads, draggedLead.lead] };
+        if (p.id === toColumnId) return { ...p, leads: [...p.leads, { ...draggedLead.lead, pipeline_id: toColumnId }] };
         return p;
       })
     );
     setDraggedLead(null);
     setDragOverColumn(null);
     dragCounter.current = {};
+
+    // Persist
+    try {
+      await apiMoveLead(draggedLead.lead.id, { pipeline_id: toColumnId, position: 0 });
+    } catch {
+      toast.error("Erro ao mover lead");
+      loadPipelines(); // rollback
+    }
   };
 
   // --- Drag & drop handlers (columns) ---
@@ -124,10 +192,12 @@ export default function CRMPage() {
     if (!draggedColumnId || draggedColumnId === columnId) return;
     setDragOverColumnId(columnId);
   };
-  const handleColumnDrop = (e: DragEvent, targetColumnId: string) => {
+  const handleColumnDrop = async (e: DragEvent, targetColumnId: string) => {
     e.preventDefault();
     if (!draggedColumnId || draggedColumnId === targetColumnId) return;
-    updatePipelines((prev) => {
+
+    // Optimistic reorder
+    setPipelines((prev) => {
       const fromIndex = prev.findIndex((p) => p.id === draggedColumnId);
       const toIndex = prev.findIndex((p) => p.id === targetColumnId);
       if (fromIndex === -1 || toIndex === -1) return prev;
@@ -136,8 +206,27 @@ export default function CRMPage() {
       updated.splice(toIndex, 0, moved);
       return updated;
     });
+
+    const draggedId = draggedColumnId;
     setDraggedColumnId(null);
     setDragOverColumnId(null);
+
+    // Persist new order
+    try {
+      const reordered = (() => {
+        const prev = [...pipelines];
+        const fromIndex = prev.findIndex((p) => p.id === draggedId);
+        const toIndex = prev.findIndex((p) => p.id === targetColumnId);
+        if (fromIndex === -1 || toIndex === -1) return prev;
+        const [moved] = prev.splice(fromIndex, 1);
+        prev.splice(toIndex, 0, moved);
+        return prev;
+      })();
+      await apiReorderPipelines(reordered.map((p, i) => ({ id: p.id, position: i })));
+    } catch {
+      toast.error("Erro ao reordenar estágios");
+      loadPipelines();
+    }
   };
   const handleColumnDragEnd = () => { setDraggedColumnId(null); setDragOverColumnId(null); };
 
@@ -147,51 +236,92 @@ export default function CRMPage() {
     setShowLeadModal(true);
   };
 
-  const handleCreateLead = () => {
+  const handleCreateLead = async () => {
     if (!leadForm.name.trim() || !leadTargetStage) return;
-    const newLead: Lead = {
-      id: `lead-${Date.now()}`,
-      name: leadForm.name,
-      phone: leadForm.phone || "(00) 00000-0000",
-      value: parseFloat(leadForm.value) || 0,
-      company: leadForm.company || undefined,
-      email: leadForm.email || undefined,
-      probability: parseInt(leadForm.probability) || 0,
-      tag: leadForm.tag || undefined,
-      lastContact: "Agora",
-    };
-    updatePipelines((prev) =>
-      prev.map((p) => (p.id === leadTargetStage ? { ...p, leads: [...p.leads, newLead] } : p))
-    );
-    setShowLeadModal(false);
-    toast.success(`Lead "${newLead.name}" adicionado`);
+    try {
+      const created = await apiCreateLead({
+        pipeline_id: leadTargetStage,
+        name: leadForm.name,
+        phone: leadForm.phone || "(00) 00000-0000",
+        value: parseFloat(leadForm.value) || 0,
+        company: leadForm.company || undefined,
+        email: leadForm.email || undefined,
+        probability: parseInt(leadForm.probability) || 0,
+        tag: leadForm.tag || undefined,
+      });
+
+      // Add to local state
+      const localLead = toLocalLead(created);
+      setPipelines((prev) =>
+        prev.map((p) => (p.id === leadTargetStage ? { ...p, leads: [...p.leads, localLead] } : p))
+      );
+      setShowLeadModal(false);
+      toast.success(`Lead "${created.name}" adicionado`);
+    } catch {
+      toast.error("Erro ao criar lead");
+    }
   };
 
-  const handleAddStage = () => {
+  const handleAddStage = async () => {
     if (!stageName.trim()) return;
-    const newStage: Pipeline = { id: `stage-${Date.now()}`, title: stageName, leads: [] };
-    updatePipelines((prev) => [...prev, newStage]);
-    setShowStageModal(false);
-    setStageName("");
-    toast.success(`Estágio "${newStage.title}" criado`);
+    try {
+      const created = await apiCreatePipeline({ title: stageName });
+      setPipelines((prev) => [...prev, toLocalPipeline(created)]);
+      setShowStageModal(false);
+      setStageName("");
+      toast.success(`Estágio "${created.title}" criado`);
+    } catch {
+      toast.error("Erro ao criar estágio");
+    }
   };
 
-  const handleRenameColumn = (columnId: string) => {
+  const handleRenameColumn = async (columnId: string) => {
     const name = prompt("Novo nome do estágio:");
     if (!name?.trim()) return;
-    updatePipelines((prev) => prev.map((p) => (p.id === columnId ? { ...p, title: name } : p)));
-    toast.success("Estágio renomeado");
+    // Optimistic
+    setPipelines((prev) => prev.map((p) => (p.id === columnId ? { ...p, title: name } : p)));
+    try {
+      await apiUpdatePipeline(columnId, { title: name });
+      toast.success("Estágio renomeado");
+    } catch {
+      toast.error("Erro ao renomear");
+      loadPipelines();
+    }
   };
 
-  const handleClearColumn = (columnId: string) => {
-    updatePipelines((prev) => prev.map((p) => (p.id === columnId ? { ...p, leads: [] } : p)));
-    toast.success("Leads removidos do estágio");
+  const handleClearColumn = async (columnId: string) => {
+    // Optimistic
+    setPipelines((prev) => prev.map((p) => (p.id === columnId ? { ...p, leads: [] } : p)));
+    try {
+      await apiClearPipeline(columnId);
+      toast.success("Leads removidos do estágio");
+    } catch {
+      toast.error("Erro ao limpar estágio");
+      loadPipelines();
+    }
   };
 
-  const handleDeleteColumn = (columnId: string) => {
-    updatePipelines((prev) => prev.filter((p) => p.id !== columnId));
-    toast.success("Estágio removido");
+  const handleDeleteColumn = async (columnId: string) => {
+    // Optimistic
+    setPipelines((prev) => prev.filter((p) => p.id !== columnId));
+    try {
+      await apiDeletePipeline(columnId);
+      toast.success("Estágio removido");
+    } catch {
+      toast.error("Erro ao remover estágio");
+      loadPipelines();
+    }
   };
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>

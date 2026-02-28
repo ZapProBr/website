@@ -649,3 +649,124 @@ export function deleteAutoReplyRule(instanceName: string, ruleId: string): Promi
     { method: "DELETE" },
   );
 }
+
+// ── CRM ────────────────────────────────────────────────
+export interface CRMLead {
+  id: string;
+  pipeline_id: string;
+  contact_id: string | null;
+  name: string;
+  phone: string;
+  email: string | null;
+  value: number;
+  company: string | null;
+  probability: number;
+  tag: string | null;
+  assignee: string | null;
+  notes: string | null;
+  position: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CRMPipeline {
+  id: string;
+  title: string;
+  color: string | null;
+  position: number;
+  leads: CRMLead[];
+  created_at: string;
+  updated_at: string;
+}
+
+export async function listPipelines(): Promise<CRMPipeline[]> {
+  const res = await api<{ pipelines: CRMPipeline[] }>("/api/crm/pipelines");
+  return res.pipelines;
+}
+
+export function createPipeline(data: { title: string; color?: string }): Promise<CRMPipeline> {
+  return api<CRMPipeline>("/api/crm/pipelines", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function updatePipeline(
+  id: string,
+  data: { title?: string; color?: string },
+): Promise<CRMPipeline> {
+  return api<CRMPipeline>(`/api/crm/pipelines/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export function deletePipeline(id: string): Promise<void> {
+  return api<void>(`/api/crm/pipelines/${id}`, { method: "DELETE" });
+}
+
+export function reorderPipelines(
+  items: { id: string; position: number }[],
+): Promise<{ pipelines: CRMPipeline[] }> {
+  return api<{ pipelines: CRMPipeline[] }>("/api/crm/pipelines/reorder", {
+    method: "POST",
+    body: JSON.stringify({ items }),
+  });
+}
+
+export function clearPipeline(id: string): Promise<void> {
+  return api<void>(`/api/crm/pipelines/${id}/clear`, { method: "POST" });
+}
+
+export function createLead(data: {
+  pipeline_id: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  value?: number;
+  company?: string;
+  probability?: number;
+  tag?: string;
+  assignee?: string;
+}): Promise<CRMLead> {
+  return api<CRMLead>("/api/crm/leads", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateLead(
+  id: string,
+  data: Partial<{
+    pipeline_id: string;
+    name: string;
+    phone: string;
+    email: string;
+    value: number;
+    company: string;
+    probability: number;
+    tag: string;
+    assignee: string;
+    notes: string;
+    position: number;
+  }>,
+): Promise<CRMLead> {
+  return api<CRMLead>(`/api/crm/leads/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteLead(id: string): Promise<void> {
+  return api<void>(`/api/crm/leads/${id}`, { method: "DELETE" });
+}
+
+export function moveLead(
+  id: string,
+  data: { pipeline_id: string; position: number },
+): Promise<CRMLead> {
+  return api<CRMLead>(`/api/crm/leads/${id}/move`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
