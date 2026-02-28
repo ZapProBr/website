@@ -315,8 +315,14 @@ export default function ConversasPage() {
       // Pre-load cached messages for the newly selected conversation
       setChatMessagesRaw(getCachedMessages(id));
       updateUrl({ id: id || null });
+      // Zero the unread badge instantly — no need to wait for the server round-trip
+      setConversations(
+        getCachedConversations().map((c) =>
+          c.id === id ? { ...c, unread_count: 0 } : c,
+        ),
+      );
     },
-    [updateUrl],
+    [updateUrl, setConversations],
   );
 
   // Keep status filter in sync with URL + cache
@@ -502,8 +508,10 @@ export default function ConversasPage() {
   useEffect(() => {
     if (!selected) return;
     fetchMessages();
-    // Mark as read
-    apiMarkRead(selected).catch(() => {});
+    // Mark as read, then sync the conversation list so all clients/tabs stay accurate
+    apiMarkRead(selected)
+      .then(() => fetchConversationsRef.current())
+      .catch(() => {});
   }, [selected, fetchMessages]);
 
   // Fallback poll messages every 10s (WS handles real-time delivery)
