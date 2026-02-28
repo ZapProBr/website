@@ -18,6 +18,7 @@ import {
   type SavedAudio, type SavedAudioWithData,
 } from "@/lib/api";
 import { AudioPlayer } from "@/components/conversas/AudioPlayer";
+import { RecordingVisualizer } from "@/components/conversas/RecordingVisualizer";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
@@ -1214,7 +1215,7 @@ function ContentItemEditor({
             <div className="flex items-center gap-3 p-3 rounded-lg border border-primary/30 bg-primary/5">
               <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
               <span className="text-sm font-medium text-foreground tabular-nums">{formatTime(recordTime)}</span>
-              <div className="flex-1" />
+              <RecordingVisualizer stream={audioStreamRef.current} isPaused={isPaused} />
               {!isPaused ? (
                 <button type="button" onClick={pauseRecording} className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground" title="Pausar">
                   <Pause className="w-4 h-4" />

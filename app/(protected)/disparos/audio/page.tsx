@@ -6,6 +6,7 @@ import { listSavedAudios, createSavedAudio, getSavedAudio, deleteSavedAudio, typ
 import { Mic, Plus, Trash2, Upload, X, Check, CircleStop, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AudioPlayer } from "@/components/conversas/AudioPlayer";
+import { RecordingVisualizer } from "@/components/conversas/RecordingVisualizer";
 import { toast } from "sonner";
 
 export default function DisparoAudioPage() {
@@ -370,8 +371,9 @@ export default function DisparoAudioPage() {
 
                 {isRecording && (
                   <div className="rounded-lg border border-border p-3 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">Gravando: {formatDuration(recordTime)}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">Gravando: {formatDuration(recordTime)}</span>
+                      <RecordingVisualizer stream={audioStreamRef.current} isPaused={isPaused} />
                       <div className="flex items-center gap-2">
                         <button
                           onClick={isPaused ? resumeRecording : pauseRecording}

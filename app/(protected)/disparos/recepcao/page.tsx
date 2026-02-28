@@ -39,6 +39,7 @@ import {
   type SavedAudio,
 } from "@/lib/api";
 import { AudioPlayer } from "@/components/conversas/AudioPlayer";
+import { RecordingVisualizer } from "@/components/conversas/RecordingVisualizer";
 
 type ResponseType = "text" | "audio" | "both";
 type AudioTab = "upload" | "record" | "saved";
@@ -729,7 +730,7 @@ export default function DisparoRecepcaoPage() {
                               <span className="text-sm font-medium text-foreground tabular-nums">
                                 {formatTime(recordTime)}
                               </span>
-                              <div className="flex-1" />
+                              <RecordingVisualizer stream={audioStreamRef.current} isPaused={isPaused} />
                               {!isPaused ? (
                                 <button
                                   type="button"
