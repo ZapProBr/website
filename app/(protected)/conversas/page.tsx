@@ -32,13 +32,20 @@ import {
 
 import { setTagStore } from "@/lib/tagStore";
 import {
-  getCachedConversations, setCachedConversations,
-  getCachedMessages, setCachedMessages,
-  getCachedUsers, setCachedUsers,
-  getCachedTags, setCachedTags,
-  getCachedSavedAudios, setCachedSavedAudios,
-  getCachedSelectedId, setCachedSelectedId,
-  getCachedStatusFilter, setCachedStatusFilter,
+  getCachedConversations,
+  setCachedConversations,
+  getCachedMessages,
+  setCachedMessages,
+  getCachedUsers,
+  setCachedUsers,
+  getCachedTags,
+  setCachedTags,
+  getCachedSavedAudios,
+  setCachedSavedAudios,
+  getCachedSelectedId,
+  setCachedSelectedId,
+  getCachedStatusFilter,
+  setCachedStatusFilter,
 } from "@/lib/conversationCache";
 import { ClientDetailPanel } from "@/components/conversas/ClientDetailPanel";
 import { AudioPlayer } from "@/components/conversas/AudioPlayer";
@@ -89,7 +96,9 @@ export default function ConversasPage() {
   const router = useRouter();
 
   // API data — initialise from module-level cache so returning to this tab is instant
-  const [conversations, setConversationsRaw] = useState<ConversationItem[]>(getCachedConversations);
+  const [conversations, setConversationsRaw] = useState<ConversationItem[]>(
+    getCachedConversations,
+  );
   const [apiUsers, setApiUsersRaw] = useState<ApiUser[]>(getCachedUsers);
   const [apiTags, setApiTagsRaw] = useState<ApiTag[]>(getCachedTags);
 
@@ -114,9 +123,14 @@ export default function ConversasPage() {
     | "todos"
     | null;
   const initialId = urlConvId || getCachedSelectedId();
-  const initialStatus = urlStatus ?? (getCachedStatusFilter() as ConversationStatus | "todos") ?? "atendendo";
+  const initialStatus =
+    urlStatus ??
+    (getCachedStatusFilter() as ConversationStatus | "todos") ??
+    "atendendo";
   const [selected, setSelectedState] = useState<string>(initialId);
-  const [chatMessages, setChatMessagesRaw] = useState<MessageItem[]>(() => getCachedMessages(initialId));
+  const [chatMessages, setChatMessagesRaw] = useState<MessageItem[]>(() =>
+    getCachedMessages(initialId),
+  );
   const [messageText, setMessageText] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilterState] = useState<
@@ -124,15 +138,19 @@ export default function ConversasPage() {
   >(initialStatus);
 
   // Wrap setChatMessages to also persist to cache
-  const setChatMessages = useCallback((updater: MessageItem[] | ((prev: MessageItem[]) => MessageItem[])) => {
-    setChatMessagesRaw((prev) => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      if (selectedRef.current) setCachedMessages(selectedRef.current, next);
-      return next;
-    });
-  }, []);
+  const setChatMessages = useCallback(
+    (updater: MessageItem[] | ((prev: MessageItem[]) => MessageItem[])) => {
+      setChatMessagesRaw((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        if (selectedRef.current) setCachedMessages(selectedRef.current, next);
+        return next;
+      });
+    },
+    [],
+  );
   const [showAudioList, setShowAudioList] = useState(false);
-  const [savedAudios, setSavedAudiosRaw] = useState<SavedAudio[]>(getCachedSavedAudios);
+  const [savedAudios, setSavedAudiosRaw] =
+    useState<SavedAudio[]>(getCachedSavedAudios);
   const setSavedAudios = useCallback((data: SavedAudio[]) => {
     setCachedSavedAudios(data);
     setSavedAudiosRaw(data);
@@ -248,34 +266,31 @@ export default function ConversasPage() {
       reader.readAsDataURL(file);
     });
 
-  const preparePendingImage = useCallback(
-    async (file: File) => {
-      if (!file.type.startsWith("image/")) {
-        toast.error("Selecione um arquivo de imagem válido.");
-        return;
-      }
-      if (file.size > 15 * 1024 * 1024) {
-        toast.error("Imagem muito grande (máximo 15MB).");
-        return;
-      }
+  const preparePendingImage = useCallback(async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Selecione um arquivo de imagem válido.");
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error("Imagem muito grande (máximo 15MB).");
+      return;
+    }
 
-      try {
-        const base64 = await fileToBase64(file);
-        setPendingImage((prev) => {
-          if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
-          return {
-            base64,
-            mimetype: file.type,
-            previewUrl: URL.createObjectURL(file),
-            name: file.name || "imagem",
-          };
-        });
-      } catch {
-        toast.error("Não foi possível processar a imagem.");
-      }
-    },
-    [],
-  );
+    try {
+      const base64 = await fileToBase64(file);
+      setPendingImage((prev) => {
+        if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+        return {
+          base64,
+          mimetype: file.type,
+          previewUrl: URL.createObjectURL(file),
+          name: file.name || "imagem",
+        };
+      });
+    } catch {
+      toast.error("Não foi possível processar a imagem.");
+    }
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -725,17 +740,23 @@ export default function ConversasPage() {
     [preparePendingImage],
   );
 
-  const handleChatDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    if (!Array.from(e.dataTransfer.types).includes("Files")) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "copy";
-    setIsDragOverChat(true);
-  }, []);
+  const handleChatDragOver = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      if (!Array.from(e.dataTransfer.types).includes("Files")) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+      setIsDragOverChat(true);
+    },
+    [],
+  );
 
-  const handleChatDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-    setIsDragOverChat(false);
-  }, []);
+  const handleChatDragLeave = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+      setIsDragOverChat(false);
+    },
+    [],
+  );
 
   const handleChatDrop = useCallback(
     async (e: React.DragEvent<HTMLDivElement>) => {
@@ -874,7 +895,8 @@ export default function ConversasPage() {
   };
 
   const sendMessage = async () => {
-    if ((!messageText.trim() && !pendingImage) || !selected || isSending) return;
+    if ((!messageText.trim() && !pendingImage) || !selected || isSending)
+      return;
 
     if (pendingImage) {
       const caption = messageText.trim();
@@ -1111,7 +1133,10 @@ export default function ConversasPage() {
                           return (
                             <>
                               <img
-                                src={getMediaUrl(conv.id, conv.last_message_id!)}
+                                src={getMediaUrl(
+                                  conv.id,
+                                  conv.last_message_id!,
+                                )}
                                 alt="Figurinha"
                                 className="w-5 h-5 rounded object-cover flex-shrink-0"
                                 loading="lazy"
@@ -1227,8 +1252,8 @@ export default function ConversasPage() {
                     Suas conversas
                   </h2>
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    Selecione uma conversa ao lado para visualizar as mensagens e
-                    começar a interagir com seus contatos.
+                    Selecione uma conversa ao lado para visualizar as mensagens
+                    e começar a interagir com seus contatos.
                   </p>
                 </div>
                 <div className="flex items-center gap-6 text-muted-foreground/60 text-xs pt-2">
@@ -1260,927 +1285,949 @@ export default function ConversasPage() {
               </div>
             </div>
           ) : (
-          <>
-          {/* Chat header */}
-          <div className="border-b border-border">
-            <div className="flex items-center justify-between px-5 py-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <button
-                  onClick={() => setShowClientPanel(true)}
-                  className="flex-shrink-0"
-                >
-                  {selectedConv?.contact_photo ? (
-                    <img
-                      src={selectedConv.contact_photo}
-                      alt={selectedConv.contact_name}
-                      className="w-10 h-10 rounded-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = "none";
-                        (
-                          e.target as HTMLImageElement
-                        ).nextElementSibling?.classList.remove("hidden");
-                      }}
-                    />
-                  ) : null}
-                  <div
-                    className={cn(
-                      "w-10 h-10 rounded-full gradient-green flex items-center justify-center text-xs font-bold text-primary-foreground",
-                      selectedConv?.contact_photo && "hidden",
-                    )}
-                  >
-                    {selectedConv
-                      ? getInitials(selectedConv.contact_name)
-                      : "?"}
-                  </div>
-                </button>
-                <button
-                  onClick={() => setShowClientPanel(true)}
-                  className="text-left hover:opacity-80 transition-opacity min-w-0"
-                >
-                  <p className="text-sm font-semibold text-foreground truncate">
-                    {selectedConv?.contact_name || "Selecione"}
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {selectedConv?.contact_phone}
-                    {selectedConv && (
-                      <span className="text-muted-foreground/60">
-                        {" "}
-                        • {selectedConv.attendant_name || "Atendente"}
-                      </span>
-                    )}
-                  </p>
-                </button>
-
-                {selectedConv &&
-                  (() => {
-                    const s = selectedConv.status;
-                    const statusConfig = {
-                      atendendo: {
-                        label: "Em Atendimento",
-                        classes:
-                          "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
-                      },
-                      aguardando: {
-                        label: "Aguardando",
-                        classes:
-                          "bg-amber-500/10 text-amber-600 border-amber-500/20",
-                      },
-                      finalizado: {
-                        label: "Finalizado",
-                        classes: "bg-muted text-muted-foreground border-border",
-                      },
-                    };
-                    const cfg = statusConfig[s] || statusConfig.aguardando;
-                    return (
-                      <span
+            <>
+              {/* Chat header */}
+              <div className="border-b border-border">
+                <div className="flex items-center justify-between px-5 py-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <button
+                      onClick={() => setShowClientPanel(true)}
+                      className="flex-shrink-0"
+                    >
+                      {selectedConv?.contact_photo ? (
+                        <img
+                          src={selectedConv.contact_photo}
+                          alt={selectedConv.contact_name}
+                          className="w-10 h-10 rounded-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display =
+                              "none";
+                            (
+                              e.target as HTMLImageElement
+                            ).nextElementSibling?.classList.remove("hidden");
+                          }}
+                        />
+                      ) : null}
+                      <div
                         className={cn(
-                          "ml-2 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border flex-shrink-0",
-                          cfg.classes,
+                          "w-10 h-10 rounded-full gradient-green flex items-center justify-center text-xs font-bold text-primary-foreground",
+                          selectedConv?.contact_photo && "hidden",
                         )}
                       >
-                        {cfg.label}
-                      </span>
-                    );
-                  })()}
+                        {selectedConv
+                          ? getInitials(selectedConv.contact_name)
+                          : "?"}
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => setShowClientPanel(true)}
+                      className="text-left hover:opacity-80 transition-opacity min-w-0"
+                    >
+                      <p className="text-sm font-semibold text-foreground truncate">
+                        {selectedConv?.contact_name || "Selecione"}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {selectedConv?.contact_phone}
+                        {selectedConv && (
+                          <span className="text-muted-foreground/60">
+                            {" "}
+                            • {selectedConv.attendant_name || "Atendente"}
+                          </span>
+                        )}
+                      </p>
+                    </button>
+
+                    {selectedConv &&
+                      (() => {
+                        const s = selectedConv.status;
+                        const statusConfig = {
+                          atendendo: {
+                            label: "Em Atendimento",
+                            classes:
+                              "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+                          },
+                          aguardando: {
+                            label: "Aguardando",
+                            classes:
+                              "bg-amber-500/10 text-amber-600 border-amber-500/20",
+                          },
+                          finalizado: {
+                            label: "Finalizado",
+                            classes:
+                              "bg-muted text-muted-foreground border-border",
+                          },
+                        };
+                        const cfg = statusConfig[s] || statusConfig.aguardando;
+                        return (
+                          <span
+                            className={cn(
+                              "ml-2 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border flex-shrink-0",
+                              cfg.classes,
+                            )}
+                          >
+                            {cfg.label}
+                          </span>
+                        );
+                      })()}
+                  </div>
+
+                  <div
+                    className="flex items-center gap-2 flex-shrink-0 relative"
+                    ref={statusMenuRef}
+                  >
+                    {/* Transfer */}
+                    <button
+                      onClick={() => {
+                        setTransferUser("");
+                        setShowTransferDialog(true);
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors"
+                    >
+                      <ArrowRightLeft className="w-4 h-4" />
+                      Transferir
+                    </button>
+
+                    {/* Status dropdown button */}
+                    <button
+                      onClick={() => {
+                        setShowStatusMenu(!showStatusMenu);
+                      }}
+                      className={cn(
+                        "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors",
+                        showStatusMenu
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "border-border text-foreground hover:bg-muted",
+                      )}
+                    >
+                      Status
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </button>
+
+                    {/* Finalizar */}
+                    <button
+                      onClick={async () => {
+                        if (!selected) return;
+                        try {
+                          await apiUpdateConversation(selected, {
+                            status: "finalizado",
+                          });
+                          toast.success("Conversa finalizada");
+                          fetchConversations();
+                        } catch {
+                          toast.error("Erro ao finalizar");
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground text-sm font-medium hover:bg-destructive/90 transition-colors"
+                    >
+                      <CircleX className="w-4 h-4" />
+                      Finalizar
+                    </button>
+
+                    {/* Status dropdown */}
+                    {showStatusMenu && (
+                      <div className="absolute top-full right-0 mt-2 bg-card border border-border rounded-xl shadow-lg z-20 w-52">
+                        <div className="px-4 py-3 border-b border-border">
+                          <span className="text-sm font-semibold text-foreground">
+                            Alterar Status
+                          </span>
+                        </div>
+                        <div className="py-1">
+                          {[
+                            {
+                              value: "atendendo" as ConversationStatus,
+                              label: "Em Atendimento",
+                              color: "bg-emerald-500",
+                            },
+                            {
+                              value: "aguardando" as ConversationStatus,
+                              label: "Aguardando",
+                              color: "bg-amber-500",
+                            },
+                            {
+                              value: "finalizado" as ConversationStatus,
+                              label: "Finalizado",
+                              color: "bg-muted-foreground",
+                            },
+                          ].map((status) => {
+                            const isActive =
+                              selectedConv?.status === status.value;
+                            return (
+                              <button
+                                key={status.value}
+                                onClick={async () => {
+                                  if (!selected) return;
+                                  try {
+                                    await apiUpdateConversation(selected, {
+                                      status: status.value,
+                                    });
+                                    setShowStatusMenu(false);
+                                    fetchConversations();
+                                  } catch {
+                                    toast.error("Erro ao alterar status");
+                                  }
+                                }}
+                                className={cn(
+                                  "w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors",
+                                  isActive
+                                    ? "bg-muted font-medium"
+                                    : "text-foreground hover:bg-muted/50",
+                                )}
+                              >
+                                <div
+                                  className={cn(
+                                    "w-2.5 h-2.5 rounded-full",
+                                    status.color,
+                                  )}
+                                />
+                                {status.label}
+                                {isActive && (
+                                  <Check className="w-3.5 h-3.5 ml-auto text-primary" />
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div
-                className="flex items-center gap-2 flex-shrink-0 relative"
-                ref={statusMenuRef}
-              >
-                {/* Transfer */}
-                <button
-                  onClick={() => {
-                    setTransferUser("");
-                    setShowTransferDialog(true);
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors"
-                >
-                  <ArrowRightLeft className="w-4 h-4" />
-                  Transferir
-                </button>
-
-                {/* Status dropdown button */}
-                <button
-                  onClick={() => {
-                    setShowStatusMenu(!showStatusMenu);
-                  }}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors",
-                    showStatusMenu
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "border-border text-foreground hover:bg-muted",
-                  )}
-                >
-                  Status
-                  <ChevronDown className="w-3.5 h-3.5" />
-                </button>
-
-                {/* Finalizar */}
-                <button
-                  onClick={async () => {
-                    if (!selected) return;
-                    try {
-                      await apiUpdateConversation(selected, {
-                        status: "finalizado",
-                      });
-                      toast.success("Conversa finalizada");
-                      fetchConversations();
-                    } catch {
-                      toast.error("Erro ao finalizar");
+                ref={messagesContainerRef}
+                onDragOver={handleChatDragOver}
+                onDragLeave={handleChatDragLeave}
+                onDrop={handleChatDrop}
+                onScroll={() => {
+                  // Ignore scroll events caused by our own programmatic scrolls
+                  if (programmaticScroll.current) {
+                    const el = messagesContainerRef.current;
+                    if (el) {
+                      const dist =
+                        el.scrollHeight - el.scrollTop - el.clientHeight;
+                      if (dist < 5) programmaticScroll.current = false;
                     }
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground text-sm font-medium hover:bg-destructive/90 transition-colors"
-                >
-                  <CircleX className="w-4 h-4" />
-                  Finalizar
-                </button>
-
-                {/* Status dropdown */}
-                {showStatusMenu && (
-                  <div className="absolute top-full right-0 mt-2 bg-card border border-border rounded-xl shadow-lg z-20 w-52">
-                    <div className="px-4 py-3 border-b border-border">
-                      <span className="text-sm font-semibold text-foreground">
-                        Alterar Status
-                      </span>
-                    </div>
-                    <div className="py-1">
-                      {[
-                        {
-                          value: "atendendo" as ConversationStatus,
-                          label: "Em Atendimento",
-                          color: "bg-emerald-500",
-                        },
-                        {
-                          value: "aguardando" as ConversationStatus,
-                          label: "Aguardando",
-                          color: "bg-amber-500",
-                        },
-                        {
-                          value: "finalizado" as ConversationStatus,
-                          label: "Finalizado",
-                          color: "bg-muted-foreground",
-                        },
-                      ].map((status) => {
-                        const isActive = selectedConv?.status === status.value;
-                        return (
-                          <button
-                            key={status.value}
-                            onClick={async () => {
-                              if (!selected) return;
-                              try {
-                                await apiUpdateConversation(selected, {
-                                  status: status.value,
-                                });
-                                setShowStatusMenu(false);
-                                fetchConversations();
-                              } catch {
-                                toast.error("Erro ao alterar status");
-                              }
-                            }}
-                            className={cn(
-                              "w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors",
-                              isActive
-                                ? "bg-muted font-medium"
-                                : "text-foreground hover:bg-muted/50",
-                            )}
-                          >
-                            <div
-                              className={cn(
-                                "w-2.5 h-2.5 rounded-full",
-                                status.color,
-                              )}
-                            />
-                            {status.label}
-                            {isActive && (
-                              <Check className="w-3.5 h-3.5 ml-auto text-primary" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    return;
+                  }
+                  const el = messagesContainerRef.current;
+                  if (!el) return;
+                  const distanceFromBottom =
+                    el.scrollHeight - el.scrollTop - el.clientHeight;
+                  isUserNearBottom.current = distanceFromBottom < 150;
+                }}
+                className="flex-1 overflow-y-auto p-5 space-y-3 bg-muted/30"
+              >
+                {isDragOverChat && (
+                  <div className="sticky top-2 z-20 rounded-xl border-2 border-dashed border-primary/60 bg-card/95 py-3 px-4 text-center text-sm font-medium text-foreground">
+                    Solte a imagem para anexar com legenda
                   </div>
                 )}
-              </div>
-            </div>
-          </div>
-
-          <div
-            ref={messagesContainerRef}
-            onDragOver={handleChatDragOver}
-            onDragLeave={handleChatDragLeave}
-            onDrop={handleChatDrop}
-            onScroll={() => {
-              // Ignore scroll events caused by our own programmatic scrolls
-              if (programmaticScroll.current) {
-                const el = messagesContainerRef.current;
-                if (el) {
-                  const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
-                  if (dist < 5) programmaticScroll.current = false;
-                }
-                return;
-              }
-              const el = messagesContainerRef.current;
-              if (!el) return;
-              const distanceFromBottom =
-                el.scrollHeight - el.scrollTop - el.clientHeight;
-              isUserNearBottom.current = distanceFromBottom < 150;
-            }}
-            className="flex-1 overflow-y-auto p-5 space-y-3 bg-muted/30"
-          >
-            {isDragOverChat && (
-              <div className="sticky top-2 z-20 rounded-xl border-2 border-dashed border-primary/60 bg-card/95 py-3 px-4 text-center text-sm font-medium text-foreground">
-                Solte a imagem para anexar com legenda
-              </div>
-            )}
-            {chatMessages.map((msg) => {
-              if (msg.is_system) {
-                return (
-                  <div key={msg.id} className="flex justify-center">
-                    <span className="text-[11px] text-muted-foreground bg-muted/80 px-3 py-1 rounded-full font-medium">
-                      {msg.text} • {formatTime(msg.created_at)}
-                    </span>
-                  </div>
-                );
-              }
-              const isSticker =
-                msg.message_type === "sticker" ||
-                (msg.has_media && msg.media_mimetype === "image/webp");
-              const sharedContact = parseSharedContact(msg.text || "");
-              const sharedLocation = parseLocation(msg.text || "");
-              const displayText = (() => {
-                const raw = (msg.text || "").trim();
-                if (sharedContact) return null;
-                if (sharedLocation) return null;
-                if (
-                  /^\[Localização\]$/i.test(raw) ||
-                  /^\[Localizacao\]$/i.test(raw)
-                ) {
-                  return "Localização compartilhada";
-                }
-                if (/^\[Video\]$/i.test(raw)) return "Vídeo";
-                if (/^\[Document\]$/i.test(raw)) return "Documento";
-                if (/^\[Image\]$/i.test(raw)) return "Imagem";
-                if (/^\[Audio\]$/i.test(raw)) return "Áudio";
-                if (/^\[Figurinha\]$/i.test(raw) || /^\[Sticker\]$/i.test(raw)) {
-                  return "Figurinha";
-                }
-                return msg.text;
-              })();
-              return (
-                <div
-                  key={msg.id}
-                  className={cn(
-                    "flex",
-                    msg.sent ? "justify-end" : "justify-start",
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "relative",
-                      isSticker ? "max-w-[230px]" : "max-w-[65%]",
-                      msg.reaction && "mb-3",
-                    )}
-                  >
+                {chatMessages.map((msg) => {
+                  if (msg.is_system) {
+                    return (
+                      <div key={msg.id} className="flex justify-center">
+                        <span className="text-[11px] text-muted-foreground bg-muted/80 px-3 py-1 rounded-full font-medium">
+                          {msg.text} • {formatTime(msg.created_at)}
+                        </span>
+                      </div>
+                    );
+                  }
+                  const isSticker =
+                    msg.message_type === "sticker" ||
+                    (msg.has_media && msg.media_mimetype === "image/webp");
+                  const sharedContact = parseSharedContact(msg.text || "");
+                  const sharedLocation = parseLocation(msg.text || "");
+                  const displayText = (() => {
+                    const raw = (msg.text || "").trim();
+                    if (sharedContact) return null;
+                    if (sharedLocation) return null;
+                    if (
+                      /^\[Localização\]$/i.test(raw) ||
+                      /^\[Localizacao\]$/i.test(raw)
+                    ) {
+                      return "Localização compartilhada";
+                    }
+                    if (/^\[Video\]$/i.test(raw)) return "Vídeo";
+                    if (/^\[Document\]$/i.test(raw)) return "Documento";
+                    if (/^\[Image\]$/i.test(raw)) return "Imagem";
+                    if (/^\[Audio\]$/i.test(raw)) return "Áudio";
+                    if (
+                      /^\[Figurinha\]$/i.test(raw) ||
+                      /^\[Sticker\]$/i.test(raw)
+                    ) {
+                      return "Figurinha";
+                    }
+                    return msg.text;
+                  })();
+                  return (
                     <div
+                      key={msg.id}
                       className={cn(
-                        "text-sm overflow-hidden",
-                        isSticker
-                          ? "bg-transparent text-foreground rounded-none"
-                          : msg.sent
-                            ? "rounded-2xl bg-primary text-primary-foreground rounded-br-md"
-                            : "rounded-2xl bg-muted text-foreground rounded-bl-md",
+                        "flex",
+                        msg.sent ? "justify-end" : "justify-start",
                       )}
                     >
-                      {/* Media content */}
-                      {msg.has_media && msg.media_mimetype && selected && (
-                        <>
-                          {msg.media_mimetype.startsWith("image/") && (
-                            <img
-                              src={getMediaUrl(selected, msg.id)}
-                              alt={isSticker ? "Figurinha" : "Imagem"}
-                              className={cn(
-                                "cursor-pointer",
-                                isSticker
-                                  ? "w-44 h-44 object-contain"
-                                  : "w-full max-h-80 object-cover",
-                              )}
-                              loading="lazy"
-                              onLoad={() => {
-                                if (isUserNearBottom.current) scrollToBottom();
-                              }}
-                              onClick={() =>
-                                window.open(
-                                  getMediaUrl(selected, msg.id),
-                                  "_blank",
-                                )
-                              }
-                            />
+                      <div
+                        className={cn(
+                          "relative",
+                          isSticker ? "max-w-[230px]" : "max-w-[65%]",
+                          msg.reaction && "mb-3",
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "text-sm overflow-hidden",
+                            isSticker
+                              ? "bg-transparent text-foreground rounded-none"
+                              : msg.sent
+                                ? "rounded-2xl bg-primary text-primary-foreground rounded-br-md"
+                                : "rounded-2xl bg-muted text-foreground rounded-bl-md",
                           )}
-                          {msg.media_mimetype.startsWith("audio/") && (
-                            <AudioPlayer
-                              src={getMediaUrl(selected, msg.id)}
-                              sent={msg.sent}
-                            />
-                          )}
-                          {msg.media_mimetype.startsWith("video/") && (
-                            <video
-                              controls
-                              className="w-full max-h-80"
-                              preload="none"
-                            >
-                              <source
-                                src={getMediaUrl(selected, msg.id)}
-                                type={msg.media_mimetype}
-                              />
-                            </video>
-                          )}
-                          {!msg.media_mimetype.startsWith("image/") &&
-                            !msg.media_mimetype.startsWith("audio/") &&
-                            !msg.media_mimetype.startsWith("video/") && (
-                              <div className="px-4 pt-2">
-                                <a
-                                  href={getMediaUrl(selected, msg.id)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
+                        >
+                          {/* Media content */}
+                          {msg.has_media && msg.media_mimetype && selected && (
+                            <>
+                              {msg.media_mimetype.startsWith("image/") && (
+                                <img
+                                  src={getMediaUrl(selected, msg.id)}
+                                  alt={isSticker ? "Figurinha" : "Imagem"}
                                   className={cn(
-                                    "underline text-xs",
-                                    msg.sent
-                                      ? "text-primary-foreground"
-                                      : "text-foreground",
+                                    "cursor-pointer",
+                                    isSticker
+                                      ? "w-44 h-44 object-contain"
+                                      : "w-full max-h-80 object-cover",
                                   )}
-                                >
-                                  📎 Baixar arquivo
-                                </a>
-                              </div>
-                            )}
-                        </>
-                      )}
-                      {/* Location card — opens Google Maps */}
-                      {sharedLocation && (
-                        <div className="py-2 px-2">
-                          <a
-                            href={`https://www.google.com/maps?q=${sharedLocation.lat},${sharedLocation.lng}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="block no-underline"
-                          >
-                            <div
-                              className={cn(
-                                "w-[230px] rounded-xl overflow-hidden",
-                                msg.sent
-                                  ? "bg-primary/10 border border-primary/20"
-                                  : "bg-background border border-border",
-                              )}
-                            >
-                              {/* Static map thumbnail via OpenStreetMap */}
-                              <div className="relative w-full h-32 overflow-hidden bg-muted">
-                                <iframe
-                                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${sharedLocation.lng - 0.005},${sharedLocation.lat - 0.003},${sharedLocation.lng + 0.005},${sharedLocation.lat + 0.003}&layer=mapnik&marker=${sharedLocation.lat},${sharedLocation.lng}`}
-                                  className="w-full h-full border-0 pointer-events-none"
                                   loading="lazy"
-                                  title="Localização"
+                                  onLoad={() => {
+                                    if (isUserNearBottom.current)
+                                      scrollToBottom();
+                                  }}
+                                  onClick={() =>
+                                    window.open(
+                                      getMediaUrl(selected, msg.id),
+                                      "_blank",
+                                    )
+                                  }
                                 />
-                              </div>
-                              <div className="px-3 pt-2 pb-1">
-                                <p
+                              )}
+                              {msg.media_mimetype.startsWith("audio/") && (
+                                <AudioPlayer
+                                  src={getMediaUrl(selected, msg.id)}
+                                  sent={msg.sent}
+                                />
+                              )}
+                              {msg.media_mimetype.startsWith("video/") && (
+                                <video
+                                  controls
+                                  className="w-full max-h-80"
+                                  preload="none"
+                                >
+                                  <source
+                                    src={getMediaUrl(selected, msg.id)}
+                                    type={msg.media_mimetype}
+                                  />
+                                </video>
+                              )}
+                              {!msg.media_mimetype.startsWith("image/") &&
+                                !msg.media_mimetype.startsWith("audio/") &&
+                                !msg.media_mimetype.startsWith("video/") && (
+                                  <div className="px-4 pt-2">
+                                    <a
+                                      href={getMediaUrl(selected, msg.id)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className={cn(
+                                        "underline text-xs",
+                                        msg.sent
+                                          ? "text-primary-foreground"
+                                          : "text-foreground",
+                                      )}
+                                    >
+                                      📎 Baixar arquivo
+                                    </a>
+                                  </div>
+                                )}
+                            </>
+                          )}
+                          {/* Location card — opens Google Maps */}
+                          {sharedLocation && (
+                            <div className="py-2 px-2">
+                              <a
+                                href={`https://www.google.com/maps?q=${sharedLocation.lat},${sharedLocation.lng}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block no-underline"
+                              >
+                                <div
                                   className={cn(
-                                    "text-xs font-semibold leading-tight",
+                                    "w-[230px] rounded-xl overflow-hidden",
                                     msg.sent
-                                      ? "text-primary-foreground"
-                                      : "text-foreground",
+                                      ? "bg-primary/10 border border-primary/20"
+                                      : "bg-background border border-border",
                                   )}
                                 >
-                                  Localização compartilhada
-                                </p>
-                                {sharedLocation.name && (
-                                  <p
+                                  {/* Static map thumbnail via OpenStreetMap */}
+                                  <div className="relative w-full h-32 overflow-hidden bg-muted">
+                                    <iframe
+                                      src={`https://www.openstreetmap.org/export/embed.html?bbox=${sharedLocation.lng - 0.005},${sharedLocation.lat - 0.003},${sharedLocation.lng + 0.005},${sharedLocation.lat + 0.003}&layer=mapnik&marker=${sharedLocation.lat},${sharedLocation.lng}`}
+                                      className="w-full h-full border-0 pointer-events-none"
+                                      loading="lazy"
+                                      title="Localização"
+                                    />
+                                  </div>
+                                  <div className="px-3 pt-2 pb-1">
+                                    <p
+                                      className={cn(
+                                        "text-xs font-semibold leading-tight",
+                                        msg.sent
+                                          ? "text-primary-foreground"
+                                          : "text-foreground",
+                                      )}
+                                    >
+                                      Localização compartilhada
+                                    </p>
+                                    {sharedLocation.name && (
+                                      <p
+                                        className={cn(
+                                          "text-[11px] mt-0.5",
+                                          msg.sent
+                                            ? "text-primary-foreground/70"
+                                            : "text-muted-foreground",
+                                        )}
+                                      >
+                                        {sharedLocation.name}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div
                                     className={cn(
-                                      "text-[11px] mt-0.5",
+                                      "border-t mt-1",
                                       msg.sent
-                                        ? "text-primary-foreground/70"
-                                        : "text-muted-foreground",
+                                        ? "border-primary/20"
+                                        : "border-border",
                                     )}
                                   >
-                                    {sharedLocation.name}
-                                  </p>
-                                )}
-                              </div>
+                                    <p
+                                      className={cn(
+                                        "w-full py-2.5 text-xs font-medium text-center",
+                                        msg.sent
+                                          ? "text-primary-foreground"
+                                          : "text-primary",
+                                      )}
+                                    >
+                                      Abrir no Google Maps
+                                    </p>
+                                  </div>
+                                </div>
+                              </a>
+                            </div>
+                          )}
+                          {/* Shared contact card — WhatsApp style */}
+                          {sharedContact && (
+                            <div className="py-2 px-2">
                               <div
                                 className={cn(
-                                  "border-t mt-1",
+                                  "w-[230px] rounded-xl overflow-hidden",
                                   msg.sent
-                                    ? "border-primary/20"
-                                    : "border-border",
+                                    ? "bg-primary/10 border border-primary/20"
+                                    : "bg-background border border-border",
                                 )}
                               >
-                                <p
+                                <div className="flex flex-col items-center pt-4 pb-3 px-4 gap-2">
+                                  <div className="w-16 h-16 rounded-full bg-muted-foreground/20 flex items-center justify-center overflow-hidden">
+                                    {sharedContact.picUrl ? (
+                                      <img
+                                        src={sharedContact.picUrl}
+                                        alt={sharedContact.name}
+                                        className="w-full h-full object-cover"
+                                        onError={(e) => {
+                                          (
+                                            e.currentTarget as HTMLImageElement
+                                          ).style.display = "none";
+                                          (
+                                            e.currentTarget
+                                              .nextElementSibling as HTMLElement | null
+                                          )?.style &&
+                                            ((
+                                              e.currentTarget
+                                                .nextElementSibling as HTMLElement
+                                            ).style.display = "flex");
+                                        }}
+                                      />
+                                    ) : null}
+                                    <span
+                                      className="text-xl font-bold text-muted-foreground select-none"
+                                      style={{
+                                        display: sharedContact.picUrl
+                                          ? "none"
+                                          : "flex",
+                                      }}
+                                    >
+                                      {sharedContact.name
+                                        .split(" ")
+                                        .filter(Boolean)
+                                        .slice(0, 2)
+                                        .map((w) => w[0].toUpperCase())
+                                        .join("")}
+                                    </span>
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="text-sm font-semibold leading-tight text-foreground">
+                                      {sharedContact.name}
+                                    </p>
+                                    {sharedContact.phone && (
+                                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                                        {sharedContact.phone}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                <div
                                   className={cn(
-                                    "w-full py-2.5 text-xs font-medium text-center",
+                                    "border-t",
                                     msg.sent
-                                      ? "text-primary-foreground"
-                                      : "text-primary",
+                                      ? "border-primary/20"
+                                      : "border-border",
                                   )}
                                 >
-                                  Abrir no Google Maps
-                                </p>
+                                  <button
+                                    onClick={() =>
+                                      sharedContact.phone
+                                        ? void saveSharedContact(
+                                            sharedContact.name,
+                                            sharedContact.phone,
+                                          )
+                                        : undefined
+                                    }
+                                    disabled={!sharedContact.phone}
+                                    className={cn(
+                                      "w-full py-2.5 text-xs font-medium text-center transition-colors",
+                                      sharedContact.phone
+                                        ? "text-primary hover:bg-primary/10 cursor-pointer"
+                                        : "text-muted-foreground cursor-default",
+                                    )}
+                                  >
+                                    {sharedContact.phone
+                                      ? "Adicionar contato"
+                                      : "Sem número"}
+                                  </button>
+                                </div>
                               </div>
                             </div>
-                          </a>
-                        </div>
-                      )}
-                      {/* Shared contact card — WhatsApp style */}
-                      {sharedContact && (
-                        <div className="py-2 px-2">
+                          )}
+                          {/* Text content — hide placeholder text like [Image], [Audio] when media exists */}
+                          {!sharedContact &&
+                            !sharedLocation &&
+                            displayText &&
+                            msg.text !== "[Erro ao descriptografar]" &&
+                            !(
+                              msg.has_media &&
+                              /^\[(image|imagem|audio|áudio|video|vídeo|document|documento|sticker|figurinha)\]$/i.test(
+                                msg.text,
+                              )
+                            ) && <p className="px-4 py-2.5">{displayText}</p>}
+                          {/* Decryption failure — shown subtly so it's clear it's a system note */}
+                          {msg.text === "[Erro ao descriptografar]" && (
+                            <p className="px-4 py-2.5 italic text-xs opacity-50">
+                              Mensagem indisponível
+                            </p>
+                          )}
+                          {!msg.text && !msg.has_media && (
+                            <p className="px-4 py-2.5">&nbsp;</p>
+                          )}
                           <div
                             className={cn(
-                              "w-[230px] rounded-xl overflow-hidden",
-                              msg.sent
-                                ? "bg-primary/10 border border-primary/20"
-                                : "bg-background border border-border",
+                              "flex items-center justify-end gap-1",
+                              isSticker
+                                ? "mt-1 px-1 pb-0 text-muted-foreground"
+                                : msg.sent
+                                  ? "px-4 pb-2 text-primary-foreground/70"
+                                  : "px-4 pb-2 text-muted-foreground",
                             )}
                           >
-                            <div className="flex flex-col items-center pt-4 pb-3 px-4 gap-2">
-                              <div className="w-16 h-16 rounded-full bg-muted-foreground/20 flex items-center justify-center overflow-hidden">
-                                {sharedContact.picUrl ? (
-                                  <img
-                                    src={sharedContact.picUrl}
-                                    alt={sharedContact.name}
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => {
-                                      (e.currentTarget as HTMLImageElement).style.display = "none";
-                                      (e.currentTarget.nextElementSibling as HTMLElement | null)?.style &&
-                                        ((e.currentTarget.nextElementSibling as HTMLElement).style.display = "flex");
-                                    }}
-                                  />
-                                ) : null}
-                                <span
-                                  className="text-xl font-bold text-muted-foreground select-none"
-                                  style={{ display: sharedContact.picUrl ? "none" : "flex" }}
-                                >
-                                  {sharedContact.name
-                                    .split(" ")
-                                    .filter(Boolean)
-                                    .slice(0, 2)
-                                    .map((w) => w[0].toUpperCase())
-                                    .join("")}
-                                </span>
-                              </div>
-                              <div className="text-center">
-                                <p className="text-sm font-semibold leading-tight text-foreground">
-                                  {sharedContact.name}
-                                </p>
-                                {sharedContact.phone && (
-                                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                                    {sharedContact.phone}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                            <div
-                              className={cn(
-                                "border-t",
-                                msg.sent
-                                  ? "border-primary/20"
-                                  : "border-border",
-                              )}
-                            >
-                              <button
-                                onClick={() =>
-                                  sharedContact.phone
-                                    ? void saveSharedContact(
-                                        sharedContact.name,
-                                        sharedContact.phone,
-                                      )
-                                    : undefined
-                                }
-                                disabled={!sharedContact.phone}
-                                className={cn(
-                                  "w-full py-2.5 text-xs font-medium text-center transition-colors",
-                                  sharedContact.phone
-                                    ? "text-primary hover:bg-primary/10 cursor-pointer"
-                                    : "text-muted-foreground cursor-default",
-                                )}
-                              >
-                                {sharedContact.phone
-                                  ? "Adicionar contato"
-                                  : "Sem número"}
-                              </button>
-                            </div>
+                            <span className="text-[10px]">
+                              {formatTime(msg.created_at)}
+                            </span>
+                            {msg.sent &&
+                              (msg.delivered || msg.read ? (
+                                <CheckCheck className="w-3 h-3" />
+                              ) : (
+                                <Check className="w-3 h-3" />
+                              ))}
                           </div>
                         </div>
-                      )}
-                      {/* Text content — hide placeholder text like [Image], [Audio] when media exists */}
-                      {!sharedContact &&
-                        !sharedLocation &&
-                        displayText &&
-                        msg.text !== "[Erro ao descriptografar]" &&
-                        !(
-                          msg.has_media &&
-                          /^\[(image|imagem|audio|áudio|video|vídeo|document|documento|sticker|figurinha)\]$/i.test(
-                            msg.text,
-                          )
-                        ) && <p className="px-4 py-2.5">{displayText}</p>}
-                      {/* Decryption failure — shown subtly so it's clear it's a system note */}
-                      {msg.text === "[Erro ao descriptografar]" && (
-                        <p className="px-4 py-2.5 italic text-xs opacity-50">
-                          Mensagem indisponível
-                        </p>
-                      )}
-                      {!msg.text && !msg.has_media && (
-                        <p className="px-4 py-2.5">&nbsp;</p>
-                      )}
-                      <div
-                        className={cn(
-                          "flex items-center justify-end gap-1",
-                          isSticker
-                            ? "mt-1 px-1 pb-0 text-muted-foreground"
-                            : msg.sent
-                              ? "px-4 pb-2 text-primary-foreground/70"
-                              : "px-4 pb-2 text-muted-foreground",
+                        {/* Reaction emoji displayed on the message bubble */}
+                        {msg.reaction && (
+                          <div
+                            className={cn(
+                              "absolute -bottom-3 px-1.5 py-0.5 rounded-full bg-card border border-border shadow-sm text-sm leading-none select-none",
+                              msg.sent ? "right-2" : "left-2",
+                            )}
+                          >
+                            {msg.reaction}
+                          </div>
                         )}
-                      >
-                        <span className="text-[10px]">
-                          {formatTime(msg.created_at)}
-                        </span>
-                        {msg.sent &&
-                          (msg.delivered || msg.read ? (
-                            <CheckCheck className="w-3 h-3" />
-                          ) : (
-                            <Check className="w-3 h-3" />
-                          ))}
                       </div>
                     </div>
-                    {/* Reaction emoji displayed on the message bubble */}
-                    {msg.reaction && (
-                      <div
-                        className={cn(
-                          "absolute -bottom-3 px-1.5 py-0.5 rounded-full bg-card border border-border shadow-sm text-sm leading-none select-none",
-                          msg.sent ? "right-2" : "left-2",
-                        )}
-                      >
-                        {msg.reaction}
-                      </div>
-                    )}
+                  );
+                })}
+                {chatMessages.length === 0 && (
+                  <div className="flex justify-center pt-12 text-muted-foreground text-sm">
+                    Nenhuma mensagem ainda
                   </div>
-                </div>
-              );
-            })}
-            {chatMessages.length === 0 && (
-              <div className="flex justify-center pt-12 text-muted-foreground text-sm">
-                Nenhuma mensagem ainda
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-
-          <div className="px-5 py-3 border-t border-border relative">
-            {/* Audio list popup */}
-            {showAudioList && (
-              <div className="absolute bottom-full left-5 right-5 mb-2 bg-card border border-border rounded-xl shadow-lg max-h-60 overflow-y-auto z-10">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                  <span className="text-sm font-semibold text-foreground">
-                    Áudios Programados
-                  </span>
-                  <button
-                    onClick={() => setShowAudioList(false)}
-                    className="p-1 rounded hover:bg-muted"
-                  >
-                    <X className="w-4 h-4 text-muted-foreground" />
-                  </button>
-                </div>
-                {savedAudios.length === 0 ? (
-                  <p className="px-4 py-6 text-sm text-muted-foreground text-center">
-                    Nenhum áudio salvo
-                  </p>
-                ) : (
-                  savedAudios.map((audio) => (
-                    <button
-                      key={audio.id}
-                      onClick={async () => {
-                        setShowAudioList(false);
-                        try {
-                          const full = await getSavedAudio(audio.id);
-                          sendMediaMessage(
-                            full.audio_base64,
-                            full.mimetype,
-                            "audio",
-                            audio.title,
-                          );
-                        } catch {
-                          toast.error("Erro ao carregar áudio");
-                        }
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <Mic className="w-4 h-4 text-primary" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">
-                          {audio.title}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {audio.duration}
-                        </p>
-                      </div>
-                      <SendIcon className="w-4 h-4 text-primary flex-shrink-0" />
-                    </button>
-                  ))
                 )}
+                <div ref={messagesEndRef} />
               </div>
-            )}
 
-            {/* Attach popup */}
-            {showAttach && (
-              <div
-                ref={attachMenuRef}
-                className="absolute bottom-full left-5 mb-2 bg-card border border-border rounded-xl shadow-lg z-10 w-56"
-              >
-                <div className="py-2">
-                  {[
-                    {
-                      icon: Image,
-                      label: "Imagem",
-                      color: "text-blue-500",
-                      action: () => {
-                        setShowAttach(false);
-                        fileInputRef.current?.click();
-                      },
-                    },
-                    {
-                      icon: FileText,
-                      label: "Documento",
-                      color: "text-orange-500",
-                      action: () => {
-                        setShowAttach(false);
-                        document.getElementById("doc-input")?.click();
-                      },
-                    },
-                    {
-                      icon: Mic,
-                      label: "Áudios Programados",
-                      color: "text-primary",
-                      action: () => {
-                        setShowAttach(false);
-                        setShowAudioList(true);
-                      },
-                    },
-                    {
-                      icon: Sticker,
-                      label: "Figurinha",
-                      color: "text-pink-500",
-                    },
-                  ].map((item) => (
-                    <button
-                      key={item.label}
-                      onClick={() => {
-                        if (item.action) {
-                          item.action();
-                        } else {
-                          setShowAttach(false);
-                          toast.info("Funcionalidade em breve");
-                        }
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 transition-colors text-left"
-                    >
-                      <item.icon className={cn("w-5 h-5", item.color)} />
-                      <span className="text-sm font-medium text-foreground">
-                        {item.label}
+              <div className="px-5 py-3 border-t border-border relative">
+                {/* Audio list popup */}
+                {showAudioList && (
+                  <div className="absolute bottom-full left-5 right-5 mb-2 bg-card border border-border rounded-xl shadow-lg max-h-60 overflow-y-auto z-10">
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                      <span className="text-sm font-semibold text-foreground">
+                        Áudios Programados
                       </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Hidden file inputs */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleImageSelect}
-            />
-            <input
-              id="doc-input"
-              type="file"
-              accept="*/*"
-              className="hidden"
-              onChange={handleDocumentSelect}
-            />
-
-            {/* Emoji picker popup */}
-            {showEmoji && (
-              <div
-                ref={emojiMenuRef}
-                className="absolute bottom-full right-5 mb-2 bg-card border border-border rounded-xl shadow-lg z-10 p-4 w-72"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-semibold text-foreground">
-                    Emojis
-                  </span>
-                  <button
-                    onClick={() => setShowEmoji(false)}
-                    className="p-1 rounded hover:bg-muted"
-                  >
-                    <X className="w-4 h-4 text-muted-foreground" />
-                  </button>
-                </div>
-                <div className="grid grid-cols-8 gap-1">
-                  {[
-                    "😀",
-                    "😂",
-                    "😍",
-                    "🥰",
-                    "😎",
-                    "🤩",
-                    "😢",
-                    "😡",
-                    "👍",
-                    "👎",
-                    "❤️",
-                    "🔥",
-                    "🎉",
-                    "✅",
-                    "⭐",
-                    "💬",
-                    "📞",
-                    "📸",
-                    "🎁",
-                    "💰",
-                    "🙏",
-                    "👋",
-                    "🤝",
-                    "💪",
-                    "🏆",
-                    "🎯",
-                    "📌",
-                    "⏰",
-                    "📅",
-                    "💡",
-                    "🚀",
-                    "✨",
-                  ].map((emoji) => (
-                    <button
-                      key={emoji}
-                      onClick={() => insertEmoji(emoji)}
-                      className="w-8 h-8 flex items-center justify-center text-lg hover:bg-muted rounded transition-colors"
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {isRecording ? (
-              <div className="flex gap-2 items-center">
-                <span
-                  className="text-xs text-muted-foreground mr-1 cursor-pointer hover:text-foreground transition-colors"
-                  onClick={cancelRecording}
-                >
-                  Cancelar
-                </span>
-                <button
-                  onClick={cancelRecording}
-                  className="w-10 h-10 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-destructive hover:border-destructive transition-colors flex-shrink-0"
-                  title="Descartar"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-                <div className="flex items-center gap-2 px-3">
-                  <div
-                    className={cn(
-                      "w-2.5 h-2.5 rounded-full bg-destructive",
-                      !isPaused && "animate-pulse",
-                    )}
-                  />
-                  <span className="text-sm font-mono font-semibold text-foreground min-w-[36px]">
-                    {formatRecordTime(recordTime)}
-                  </span>
-                </div>
-                <RecordingVisualizer
-                  stream={audioStreamRef.current}
-                  isPaused={isPaused}
-                />
-                <button
-                  onClick={isPaused ? resumeRecording : pauseRecording}
-                  className="w-10 h-10 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground transition-colors flex-shrink-0"
-                  title={isPaused ? "Continuar" : "Pausar"}
-                >
-                  {isPaused ? (
-                    <Play className="w-4 h-4" />
-                  ) : (
-                    <Pause className="w-4 h-4" />
-                  )}
-                </button>
-                <button
-                  onClick={sendRecording}
-                  className="w-10 h-10 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center justify-center flex-shrink-0"
-                  title="Enviar áudio"
-                >
-                  <SendIcon className="w-5 h-5" />
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2" onPaste={handleComposerPaste}>
-                {pendingImage && (
-                  <div className="inline-flex items-start gap-3 rounded-xl border border-border bg-card p-2.5 max-w-[380px]">
-                    <img
-                      src={pendingImage.previewUrl}
-                      alt="Prévia"
-                      className="w-16 h-16 rounded-md object-cover"
-                    />
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-foreground truncate">
-                        {pendingImage.name}
-                      </p>
+                      <button
+                        onClick={() => setShowAudioList(false)}
+                        className="p-1 rounded hover:bg-muted"
+                      >
+                        <X className="w-4 h-4 text-muted-foreground" />
+                      </button>
                     </div>
-                    <button
-                      onClick={clearPendingImage}
-                      className="p-1 rounded hover:bg-muted"
-                      title="Remover imagem"
-                    >
-                      <X className="w-4 h-4 text-muted-foreground" />
-                    </button>
+                    {savedAudios.length === 0 ? (
+                      <p className="px-4 py-6 text-sm text-muted-foreground text-center">
+                        Nenhum áudio salvo
+                      </p>
+                    ) : (
+                      savedAudios.map((audio) => (
+                        <button
+                          key={audio.id}
+                          onClick={async () => {
+                            setShowAudioList(false);
+                            try {
+                              const full = await getSavedAudio(audio.id);
+                              sendMediaMessage(
+                                full.audio_base64,
+                                full.mimetype,
+                                "audio",
+                                audio.title,
+                              );
+                            } catch {
+                              toast.error("Erro ao carregar áudio");
+                            }
+                          }}
+                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            <Mic className="w-4 h-4 text-primary" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">
+                              {audio.title}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {audio.duration}
+                            </p>
+                          </div>
+                          <SendIcon className="w-4 h-4 text-primary flex-shrink-0" />
+                        </button>
+                      ))
+                    )}
                   </div>
                 )}
 
-                <div className="flex gap-2 items-center">
-                <button
-                  onClick={() => {
-                    setShowAttach(!showAttach);
-                    setShowEmoji(false);
-                    setShowAudioList(false);
-                  }}
-                  className={cn(
-                    "p-2.5 rounded-lg transition-colors flex-shrink-0",
-                    showAttach
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted",
-                  )}
-                  title="Anexar"
-                >
-                  <Plus className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={() => {
-                    setShowEmoji(!showEmoji);
-                    setShowAttach(false);
-                    setShowAudioList(false);
-                  }}
-                  className={cn(
-                    "p-2.5 rounded-lg transition-colors flex-shrink-0",
-                    showEmoji
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted",
-                  )}
-                  title="Emoji"
-                >
-                  <Smile className="w-5 h-5" />
-                </button>
+                {/* Attach popup */}
+                {showAttach && (
+                  <div
+                    ref={attachMenuRef}
+                    className="absolute bottom-full left-5 mb-2 bg-card border border-border rounded-xl shadow-lg z-10 w-56"
+                  >
+                    <div className="py-2">
+                      {[
+                        {
+                          icon: Image,
+                          label: "Imagem",
+                          color: "text-blue-500",
+                          action: () => {
+                            setShowAttach(false);
+                            fileInputRef.current?.click();
+                          },
+                        },
+                        {
+                          icon: FileText,
+                          label: "Documento",
+                          color: "text-orange-500",
+                          action: () => {
+                            setShowAttach(false);
+                            document.getElementById("doc-input")?.click();
+                          },
+                        },
+                        {
+                          icon: Mic,
+                          label: "Áudios Programados",
+                          color: "text-primary",
+                          action: () => {
+                            setShowAttach(false);
+                            setShowAudioList(true);
+                          },
+                        },
+                        {
+                          icon: Sticker,
+                          label: "Figurinha",
+                          color: "text-pink-500",
+                        },
+                      ].map((item) => (
+                        <button
+                          key={item.label}
+                          onClick={() => {
+                            if (item.action) {
+                              item.action();
+                            } else {
+                              setShowAttach(false);
+                              toast.info("Funcionalidade em breve");
+                            }
+                          }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 transition-colors text-left"
+                        >
+                          <item.icon className={cn("w-5 h-5", item.color)} />
+                          <span className="text-sm font-medium text-foreground">
+                            {item.label}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Hidden file inputs */}
                 <input
-                  type="text"
-                  placeholder={
-                    pendingImage
-                      ? "Adicione uma legenda (opcional)..."
-                      : "Digite uma mensagem..."
-                  }
-                  value={messageText}
-                  onChange={(e) => handleMessageInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      sendMessage();
-                    }
-                  }}
-                  className="flex-1 bg-muted rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageSelect}
                 />
-                <button
-                  onClick={startRecording}
-                  className="p-2.5 rounded-lg transition-colors flex-shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted"
-                  title="Gravar áudio"
-                >
-                  <Mic className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={sendMessage}
-                  disabled={isSending || (!messageText.trim() && !pendingImage)}
-                  className={cn(
-                    "p-2.5 rounded-lg transition-colors flex-shrink-0",
-                    isSending || (!messageText.trim() && !pendingImage)
-                      ? "bg-muted text-muted-foreground cursor-not-allowed"
-                      : "bg-primary text-primary-foreground hover:bg-primary/90",
-                  )}
-                >
-                  <SendIcon className="w-5 h-5" />
-                </button>
+                <input
+                  id="doc-input"
+                  type="file"
+                  accept="*/*"
+                  className="hidden"
+                  onChange={handleDocumentSelect}
+                />
+
+                {/* Emoji picker popup */}
+                {showEmoji && (
+                  <div
+                    ref={emojiMenuRef}
+                    className="absolute bottom-full right-5 mb-2 bg-card border border-border rounded-xl shadow-lg z-10 p-4 w-72"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-semibold text-foreground">
+                        Emojis
+                      </span>
+                      <button
+                        onClick={() => setShowEmoji(false)}
+                        className="p-1 rounded hover:bg-muted"
+                      >
+                        <X className="w-4 h-4 text-muted-foreground" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-8 gap-1">
+                      {[
+                        "😀",
+                        "😂",
+                        "😍",
+                        "🥰",
+                        "😎",
+                        "🤩",
+                        "😢",
+                        "😡",
+                        "👍",
+                        "👎",
+                        "❤️",
+                        "🔥",
+                        "🎉",
+                        "✅",
+                        "⭐",
+                        "💬",
+                        "📞",
+                        "📸",
+                        "🎁",
+                        "💰",
+                        "🙏",
+                        "👋",
+                        "🤝",
+                        "💪",
+                        "🏆",
+                        "🎯",
+                        "📌",
+                        "⏰",
+                        "📅",
+                        "💡",
+                        "🚀",
+                        "✨",
+                      ].map((emoji) => (
+                        <button
+                          key={emoji}
+                          onClick={() => insertEmoji(emoji)}
+                          className="w-8 h-8 flex items-center justify-center text-lg hover:bg-muted rounded transition-colors"
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {isRecording ? (
+                  <div className="flex gap-2 items-center">
+                    <span
+                      className="text-xs text-muted-foreground mr-1 cursor-pointer hover:text-foreground transition-colors"
+                      onClick={cancelRecording}
+                    >
+                      Cancelar
+                    </span>
+                    <button
+                      onClick={cancelRecording}
+                      className="w-10 h-10 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-destructive hover:border-destructive transition-colors flex-shrink-0"
+                      title="Descartar"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                    <div className="flex items-center gap-2 px-3">
+                      <div
+                        className={cn(
+                          "w-2.5 h-2.5 rounded-full bg-destructive",
+                          !isPaused && "animate-pulse",
+                        )}
+                      />
+                      <span className="text-sm font-mono font-semibold text-foreground min-w-[36px]">
+                        {formatRecordTime(recordTime)}
+                      </span>
+                    </div>
+                    <RecordingVisualizer
+                      stream={audioStreamRef.current}
+                      isPaused={isPaused}
+                    />
+                    <button
+                      onClick={isPaused ? resumeRecording : pauseRecording}
+                      className="w-10 h-10 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground transition-colors flex-shrink-0"
+                      title={isPaused ? "Continuar" : "Pausar"}
+                    >
+                      {isPaused ? (
+                        <Play className="w-4 h-4" />
+                      ) : (
+                        <Pause className="w-4 h-4" />
+                      )}
+                    </button>
+                    <button
+                      onClick={sendRecording}
+                      className="w-10 h-10 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center justify-center flex-shrink-0"
+                      title="Enviar áudio"
+                    >
+                      <SendIcon className="w-5 h-5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2" onPaste={handleComposerPaste}>
+                    {pendingImage && (
+                      <div className="inline-flex items-start gap-3 rounded-xl border border-border bg-card p-2.5 max-w-[380px]">
+                        <img
+                          src={pendingImage.previewUrl}
+                          alt="Prévia"
+                          className="w-16 h-16 rounded-md object-cover"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-foreground truncate">
+                            {pendingImage.name}
+                          </p>
+                        </div>
+                        <button
+                          onClick={clearPendingImage}
+                          className="p-1 rounded hover:bg-muted"
+                          title="Remover imagem"
+                        >
+                          <X className="w-4 h-4 text-muted-foreground" />
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="flex gap-2 items-center">
+                      <button
+                        onClick={() => {
+                          setShowAttach(!showAttach);
+                          setShowEmoji(false);
+                          setShowAudioList(false);
+                        }}
+                        className={cn(
+                          "p-2.5 rounded-lg transition-colors flex-shrink-0",
+                          showAttach
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:text-foreground hover:bg-muted",
+                        )}
+                        title="Anexar"
+                      >
+                        <Plus className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowEmoji(!showEmoji);
+                          setShowAttach(false);
+                          setShowAudioList(false);
+                        }}
+                        className={cn(
+                          "p-2.5 rounded-lg transition-colors flex-shrink-0",
+                          showEmoji
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:text-foreground hover:bg-muted",
+                        )}
+                        title="Emoji"
+                      >
+                        <Smile className="w-5 h-5" />
+                      </button>
+                      <input
+                        type="text"
+                        placeholder={
+                          pendingImage
+                            ? "Adicione uma legenda (opcional)..."
+                            : "Digite uma mensagem..."
+                        }
+                        value={messageText}
+                        onChange={(e) => handleMessageInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            sendMessage();
+                          }
+                        }}
+                        className="flex-1 bg-muted rounded-lg px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      />
+                      <button
+                        onClick={startRecording}
+                        className="p-2.5 rounded-lg transition-colors flex-shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted"
+                        title="Gravar áudio"
+                      >
+                        <Mic className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={sendMessage}
+                        disabled={
+                          isSending || (!messageText.trim() && !pendingImage)
+                        }
+                        className={cn(
+                          "p-2.5 rounded-lg transition-colors flex-shrink-0",
+                          isSending || (!messageText.trim() && !pendingImage)
+                            ? "bg-muted text-muted-foreground cursor-not-allowed"
+                            : "bg-primary text-primary-foreground hover:bg-primary/90",
+                        )}
+                      >
+                        <SendIcon className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
-              </div>
-            )}
-          </div>
-          </>
+            </>
           )}
         </div>
 
