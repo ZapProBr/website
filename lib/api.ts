@@ -186,6 +186,7 @@ export interface Contact {
   phone: string;
   email: string | null;
   notes: string | null;
+  profile_picture_url: string | null;
   tags: Tag[];
   created_at: string;
 }

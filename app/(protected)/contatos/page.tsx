@@ -232,7 +232,11 @@ export default function ContatosPage() {
                   <td className="w-12 px-4 py-3.5"><input type="checkbox" checked={selectedIds.includes(c.id)} onChange={() => toggleSelect(c.id)} className="w-4 h-4 rounded border-border accent-primary cursor-pointer" /></td>
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-3">
-                      <div className={cn("w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold", getAvatarColor(c.name))}>{getInitials(c.name)}</div>
+                      {c.profile_picture_url ? (
+                        <img src={c.profile_picture_url} alt="" className="w-9 h-9 rounded-full object-cover" />
+                      ) : (
+                        <div className={cn("w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold", getAvatarColor(c.name))}>{getInitials(c.name)}</div>
+                      )}
                       <span className="text-sm font-medium text-foreground">{c.name}</span>
                     </div>
                   </td>
