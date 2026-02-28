@@ -578,3 +578,73 @@ export function upsertAutoReplyConfig(
     body: JSON.stringify(data),
   });
 }
+
+// ── Auto-Reply Rules (Keyword matching) ────────────────
+export interface AutoReplyRule {
+  id: string;
+  instance_name: string;
+  workspace_id: string;
+  keyword: string;
+  match_mode: "exact" | "contains" | "starts_with";
+  response_type: "text" | "audio" | "both";
+  welcome_message: string | null;
+  audio_base64: string | null;
+  audio_mimetype: string | null;
+  audio_filename: string | null;
+  active: boolean;
+  order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export function listAutoReplyRules(instanceName: string): Promise<AutoReplyRule[]> {
+  return api<AutoReplyRule[]>(`/api/auto-reply/${encodeURIComponent(instanceName)}/rules`);
+}
+
+export function createAutoReplyRule(
+  instanceName: string,
+  data: {
+    keyword: string;
+    match_mode?: "exact" | "contains" | "starts_with";
+    response_type?: "text" | "audio" | "both";
+    welcome_message?: string | null;
+    audio_base64?: string | null;
+    audio_mimetype?: string | null;
+    audio_filename?: string | null;
+    active?: boolean;
+    order?: number;
+  },
+): Promise<AutoReplyRule> {
+  return api<AutoReplyRule>(`/api/auto-reply/${encodeURIComponent(instanceName)}/rules`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateAutoReplyRule(
+  instanceName: string,
+  ruleId: string,
+  data: Partial<{
+    keyword: string;
+    match_mode: "exact" | "contains" | "starts_with";
+    response_type: "text" | "audio" | "both";
+    welcome_message: string | null;
+    audio_base64: string | null;
+    audio_mimetype: string | null;
+    audio_filename: string | null;
+    active: boolean;
+    order: number;
+  }>,
+): Promise<AutoReplyRule> {
+  return api<AutoReplyRule>(
+    `/api/auto-reply/${encodeURIComponent(instanceName)}/rules/${ruleId}`,
+    { method: "PUT", body: JSON.stringify(data) },
+  );
+}
+
+export function deleteAutoReplyRule(instanceName: string, ruleId: string): Promise<void> {
+  return api<void>(
+    `/api/auto-reply/${encodeURIComponent(instanceName)}/rules/${ruleId}`,
+    { method: "DELETE" },
+  );
+}
