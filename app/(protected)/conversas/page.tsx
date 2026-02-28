@@ -817,6 +817,10 @@ export default function ConversasPage() {
     };
     setChatMessages((prev) => [...prev, optimisticMsg]);
 
+    // Force scroll to bottom after sending
+    isUserNearBottom.current = true;
+    setTimeout(() => scrollToBottom("smooth"), 50);
+
     try {
       const msg = await apiSendMedia(selected, {
         media_base64: base64,
@@ -1053,6 +1057,10 @@ export default function ConversasPage() {
       created_at: new Date().toISOString(),
     };
     setChatMessages((prev) => [...prev, optimisticMsg]);
+
+    // Force scroll to bottom after sending
+    isUserNearBottom.current = true;
+    setTimeout(() => scrollToBottom("smooth"), 50);
 
     try {
       const msg = await apiSendMessage(selected, { text });
