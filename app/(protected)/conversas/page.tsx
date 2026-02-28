@@ -182,12 +182,23 @@ export default function ConversasPage() {
   const clampPan = (pan: { x: number; y: number }, zoom: number) => {
     const img = lbImgRef.current;
     if (!img || zoom <= 1) return { x: 0, y: 0 };
-    const baseW = img.clientWidth;
-    const baseH = img.clientHeight;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const nw = img.naturalWidth;
+    const nh = img.naturalHeight;
+    if (!nw || !nh) return pan;
+    const imgAspect = nw / nh;
+    const vpAspect = vw / vh;
+    let baseW: number, baseH: number;
+    if (imgAspect > vpAspect) {
+      baseW = vw; baseH = vw / imgAspect;
+    } else {
+      baseH = vh; baseW = vh * imgAspect;
+    }
     const scaledW = baseW * zoom;
     const scaledH = baseH * zoom;
-    const maxX = Math.max(0, (scaledW - window.innerWidth) / 2);
-    const maxY = Math.max(0, (scaledH - window.innerHeight) / 2);
+    const maxX = Math.max(0, (scaledW - vw) / 2);
+    const maxY = Math.max(0, (scaledH - vh) / 2);
     return {
       x: Math.max(-maxX, Math.min(maxX, pan.x)),
       y: Math.max(-maxY, Math.min(maxY, pan.y)),
@@ -205,12 +216,12 @@ export default function ConversasPage() {
     const handleWheel = (e: WheelEvent) => {
       if (!e.ctrlKey) return;
       e.preventDefault();
-      setLbZoom((z) => Math.min(10, Math.max(0.5, z - e.deltaY * 0.002)));
+      setLbZoom((z) => Math.min(10, Math.max(1, z - e.deltaY * 0.002)));
     };
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") { setLightboxImage(null); return; }
       if (e.ctrlKey && (e.key === "=" || e.key === "+")) { e.preventDefault(); setLbZoom((z) => Math.min(10, z * 1.2)); }
-      if (e.ctrlKey && e.key === "-") { e.preventDefault(); setLbZoom((z) => Math.max(0.5, z / 1.2)); }
+      if (e.ctrlKey && e.key === "-") { e.preventDefault(); setLbZoom((z) => Math.max(1, z / 1.2)); }
       if (e.ctrlKey && e.key === "0") { e.preventDefault(); setLbZoom(1); setLbPan({ x: 0, y: 0 }); }
     };
     window.addEventListener("wheel", handleWheel, { passive: false });
@@ -2395,7 +2406,7 @@ export default function ConversasPage() {
               ref={lbImgRef}
               src={lightboxImage}
               alt="Preview"
-              className="max-w-[90vw] max-h-[85vh] object-contain"
+              className="w-full h-full object-contain"
               draggable={false}
               style={{
                 transform: `translate(${lbPan.x}px, ${lbPan.y}px) scale(${lbZoom})`,
