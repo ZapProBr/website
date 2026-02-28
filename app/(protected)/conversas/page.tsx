@@ -173,6 +173,33 @@ export default function ConversasPage() {
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [showClientPanel, setShowClientPanel] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [lbZoom, setLbZoom] = useState(1);
+  const [lbPan, setLbPan] = useState({ x: 0, y: 0 });
+  const lbDragging = useRef(false);
+
+  // Reset zoom/pan when lightbox opens
+  useEffect(() => {
+    if (lightboxImage) { setLbZoom(1); setLbPan({ x: 0, y: 0 }); }
+  }, [lightboxImage]);
+
+  // Ctrl+scroll and Ctrl+/- zoom, Escape to close
+  useEffect(() => {
+    if (!lightboxImage) return;
+    const handleWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      setLbZoom((z) => Math.min(10, Math.max(0.5, z - e.deltaY * 0.002)));
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { setLightboxImage(null); return; }
+      if (e.ctrlKey && (e.key === "=" || e.key === "+")) { e.preventDefault(); setLbZoom((z) => Math.min(10, z * 1.2)); }
+      if (e.ctrlKey && e.key === "-") { e.preventDefault(); setLbZoom((z) => Math.max(0.5, z / 1.2)); }
+      if (e.ctrlKey && e.key === "0") { e.preventDefault(); setLbZoom(1); setLbPan({ x: 0, y: 0 }); }
+    };
+    window.addEventListener("wheel", handleWheel, { passive: false });
+    window.addEventListener("keydown", handleKey);
+    return () => { window.removeEventListener("wheel", handleWheel); window.removeEventListener("keydown", handleKey); };
+  }, [lightboxImage]);
 
   // Advanced filters
   const [showAdvFilters, setShowAdvFilters] = useState(false);
@@ -2306,23 +2333,46 @@ export default function ConversasPage() {
         </DialogContent>
       </Dialog>
 
-      {/* WhatsApp-style image lightbox */}
+      {/* WhatsApp-style image lightbox with zoom/pan */}
       {lightboxImage && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm"
-          onClick={() => setLightboxImage(null)}
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm select-none"
+          onClick={() => { if (!lbDragging.current) setLightboxImage(null); }}
+          onMouseMove={(e) => {
+            if (!lbDragging.current) return;
+            setLbPan((p) => ({ x: p.x + e.movementX, y: p.y + e.movementY }));
+          }}
+          onMouseUp={() => { lbDragging.current = false; }}
+          onMouseLeave={() => { lbDragging.current = false; }}
+          style={{ cursor: lbZoom > 1 ? (lbDragging.current ? "grabbing" : "grab") : "default" }}
         >
           <button
-            onClick={() => setLightboxImage(null)}
+            onClick={(e) => { e.stopPropagation(); setLightboxImage(null); }}
             className="absolute top-4 right-4 p-2 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors z-10"
           >
             <X className="w-6 h-6" />
           </button>
+          {lbZoom !== 1 && (
+            <span className="absolute top-4 left-4 px-3 py-1 rounded-full bg-black/50 text-white text-xs font-medium z-10">
+              {Math.round(lbZoom * 100)}%
+            </span>
+          )}
           <img
             src={lightboxImage}
             alt="Preview"
             className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            draggable={false}
+            style={{
+              transform: `translate(${lbPan.x}px, ${lbPan.y}px) scale(${lbZoom})`,
+              transition: lbDragging.current ? "none" : "transform 0.15s ease-out",
+            }}
             onClick={(e) => e.stopPropagation()}
+            onDoubleClick={() => {
+              if (lbZoom === 1) { setLbZoom(2.5); } else { setLbZoom(1); setLbPan({ x: 0, y: 0 }); }
+            }}
+            onMouseDown={(e) => {
+              if (lbZoom > 1) { e.preventDefault(); e.stopPropagation(); lbDragging.current = true; }
+            }}
           />
         </div>
       )}
