@@ -65,6 +65,15 @@ export function AppSidebar() {
   const [user, setUser] = useState<UserMe | null>(null);
   const [convCount, setConvCount] = useState(0);
 
+  // Auto-expand menus whose sub-items match the current route
+  useEffect(() => {
+    for (const item of menuItemsDef) {
+      if (item.subItems?.some((sub) => pathname === sub.url || pathname.startsWith(sub.url + "/"))) {
+        setExpandedMenus((prev) => ({ ...prev, [item.title]: true }));
+      }
+    }
+  }, [pathname]);
+
   useEffect(() => {
     getMe().then(setUser).catch(() => {});
     listConversations({ status: "atendendo" })
@@ -148,12 +157,32 @@ export function AppSidebar() {
 
           return (
             <div key={item.title}>
-              <div className="flex items-center">
+              {hasSubItems ? (
+                <button
+                  onClick={() => toggleExpand(item.title)}
+                  title={collapsed ? item.title : undefined}
+                  className={cn(
+                    "w-full flex items-center rounded-xl text-sm font-medium transition-all duration-200",
+                    collapsed ? "justify-center p-2.5" : "gap-3 px-3.5 py-2.5",
+                    "text-[var(--sidebar-foreground)] hover:text-[var(--sidebar-accent-foreground)] hover:bg-[var(--sidebar-accent)]",
+                    isActive && "bg-[var(--sidebar-primary)]/15 text-[var(--sidebar-primary)] !font-semibold"
+                  )}
+                >
+                  <item.icon className={cn("w-[22px] h-[22px] flex-shrink-0 stroke-[1.8]", isActive && "text-[var(--sidebar-primary)]")} />
+                  {!collapsed && <span className="flex-1 text-left">{item.title}</span>}
+                  {!collapsed && (
+                    <ChevronDown className={cn(
+                      "w-4 h-4 text-[var(--sidebar-foreground)]/50 transition-transform duration-200",
+                      isExpanded && "rotate-180"
+                    )} />
+                  )}
+                </button>
+              ) : (
                 <Link
                   href={item.url}
                   title={collapsed ? item.title : undefined}
                   className={cn(
-                    "flex-1 flex items-center rounded-xl text-sm font-medium transition-all duration-200",
+                    "w-full flex items-center rounded-xl text-sm font-medium transition-all duration-200",
                     collapsed ? "justify-center p-2.5" : "gap-3 px-3.5 py-2.5",
                     "text-[var(--sidebar-foreground)] hover:text-[var(--sidebar-accent-foreground)] hover:bg-[var(--sidebar-accent)]",
                     isActive && "bg-[var(--sidebar-primary)]/15 text-[var(--sidebar-primary)] !font-semibold"
@@ -172,21 +201,7 @@ export function AppSidebar() {
                     </span>
                   )}
                 </Link>
-                {!collapsed && hasSubItems && (
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      toggleExpand(item.title);
-                    }}
-                    className="p-2 rounded-lg hover:bg-[var(--sidebar-accent)] transition-colors"
-                  >
-                    <ChevronDown className={cn(
-                      "w-4 h-4 text-[var(--sidebar-foreground)]/50 transition-transform duration-200",
-                      isExpanded && "rotate-180"
-                    )} />
-                  </button>
-                )}
-              </div>
+              )}
 
               {/* Sub Items */}
               {!collapsed && hasSubItems && isExpanded && (
