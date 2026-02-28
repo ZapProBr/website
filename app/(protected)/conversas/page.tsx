@@ -172,6 +172,7 @@ export default function ConversasPage() {
   const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [showClientPanel, setShowClientPanel] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
   // Advanced filters
   const [showAdvFilters, setShowAdvFilters] = useState(false);
@@ -1603,9 +1604,8 @@ export default function ConversasPage() {
                                       scrollToBottom();
                                   }}
                                   onClick={() =>
-                                    window.open(
+                                    setLightboxImage(
                                       getMediaUrl(selected, msg.id),
-                                      "_blank",
                                     )
                                   }
                                 />
@@ -2305,6 +2305,27 @@ export default function ConversasPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* WhatsApp-style image lightbox */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setLightboxImage(null)}
+        >
+          <button
+            onClick={() => setLightboxImage(null)}
+            className="absolute top-4 right-4 p-2 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors z-10"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={lightboxImage}
+            alt="Preview"
+            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </AppLayout>
   );
 }
