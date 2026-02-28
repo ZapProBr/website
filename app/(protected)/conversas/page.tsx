@@ -1569,14 +1569,14 @@ export default function ConversasPage() {
                     >
                       <div
                         className={cn(
-                          "relative",
+                          "relative min-w-0",
                           isSticker ? "max-w-[230px]" : "max-w-[65%]",
                           msg.reaction && "mb-3",
                         )}
                       >
                         <div
                           className={cn(
-                            "text-sm overflow-hidden break-words",
+                            "text-sm overflow-hidden [overflow-wrap:anywhere] [word-break:break-word]",
                             isSticker
                               ? "bg-transparent text-foreground rounded-none"
                               : msg.sent
@@ -1825,7 +1825,7 @@ export default function ConversasPage() {
                               /^\[(image|imagem|audio|áudio|video|vídeo|document|documento|sticker|figurinha)\]$/i.test(
                                 msg.text,
                               )
-                            ) && <p className="px-4 py-2.5 whitespace-pre-wrap break-words">{displayText}</p>}
+                            ) && <p className="px-4 py-2.5 whitespace-pre-wrap [overflow-wrap:anywhere]">{displayText}</p>}
                           {/* Decryption failure — shown subtly so it's clear it's a system note */}
                           {msg.text === "[Erro ao descriptografar]" && (
                             <p className="px-4 py-2.5 italic text-xs opacity-50">
