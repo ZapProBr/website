@@ -79,7 +79,9 @@ const DEFAULT_CONFIG: InstanceConfig = {
 export default function DisparoRecepcaoPage() {
   // ── Data ──
   const [instances, setInstances] = useState<EvolutionInstance[]>([]);
-  const [configs, setConfigs] = useState<Map<string, InstanceConfig>>(new Map());
+  const [configs, setConfigs] = useState<Map<string, InstanceConfig>>(
+    new Map(),
+  );
   const [savedAudios, setSavedAudios] = useState<SavedAudio[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -119,7 +121,9 @@ export default function DisparoRecepcaoPage() {
   const [loadingSavedId, setLoadingSavedId] = useState<string | null>(null);
 
   // ── Derived ──
-  const config = selectedInstance ? configs.get(selectedInstance) ?? { ...DEFAULT_CONFIG } : null;
+  const config = selectedInstance
+    ? (configs.get(selectedInstance) ?? { ...DEFAULT_CONFIG })
+    : null;
 
   const updateConfig = useCallback(
     (patch: Partial<InstanceConfig>) => {
@@ -137,7 +141,8 @@ export default function DisparoRecepcaoPage() {
   // ── Load data on mount ──
   useEffect(() => {
     (async () => {
-      try {        const [inst, cfgs, audios] = await Promise.all([
+      try {
+        const [inst, cfgs, audios] = await Promise.all([
           listInstances(),
           listAutoReplyConfigs(),
           listSavedAudios(),
@@ -151,7 +156,8 @@ export default function DisparoRecepcaoPage() {
           map.set(c.instance_name, {
             active: c.active,
             response_type: c.response_type as ResponseType,
-            welcome_message: c.welcome_message ?? DEFAULT_CONFIG.welcome_message,
+            welcome_message:
+              c.welcome_message ?? DEFAULT_CONFIG.welcome_message,
             audio_base64: c.audio_base64,
             audio_mimetype: c.audio_mimetype,
             audio_filename: c.audio_filename,
@@ -172,7 +178,10 @@ export default function DisparoRecepcaoPage() {
 
   // ── Load rules when instance changes ──
   useEffect(() => {
-    if (!selectedInstance) { setRules([]); return; }
+    if (!selectedInstance) {
+      setRules([]);
+      return;
+    }
     setRulesLoading(true);
     listAutoReplyRules(selectedInstance)
       .then(setRules)
@@ -417,8 +426,14 @@ export default function DisparoRecepcaoPage() {
         active: ruleForm.active,
       };
       if (editingRule) {
-        const updated = await updateAutoReplyRule(selectedInstance, editingRule.id, payload);
-        setRules((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+        const updated = await updateAutoReplyRule(
+          selectedInstance,
+          editingRule.id,
+          payload,
+        );
+        setRules((prev) =>
+          prev.map((r) => (r.id === updated.id ? updated : r)),
+        );
         toast.success("Regra atualizada");
       } else {
         const created = await createAutoReplyRule(selectedInstance, payload);
@@ -473,7 +488,8 @@ export default function DisparoRecepcaoPage() {
     value: ResponseType;
     label: string;
     icon: typeof Type;
-  }[] = [    { value: "text", label: "Mensagem de Texto", icon: Type },
+  }[] = [
+    { value: "text", label: "Mensagem de Texto", icon: Type },
     { value: "audio", label: "Áudio", icon: Mic },
     { value: "both", label: "Texto + Áudio", icon: MessageSquarePlus },
   ];
@@ -534,9 +550,7 @@ export default function DisparoRecepcaoPage() {
                       <Smartphone
                         className={cn(
                           "w-5 h-5",
-                          isSelected
-                            ? "text-primary"
-                            : "text-muted-foreground",
+                          isSelected ? "text-primary" : "text-muted-foreground",
                         )}
                       />
                       <div className="text-left flex-1 min-w-0">
@@ -899,7 +913,9 @@ export default function DisparoRecepcaoPage() {
                         Regras por Anúncio
                       </h3>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Responda automaticamente quando o cliente enviar uma frase específica (ex.: texto pré-preenchido de um anúncio)
+                        Responda automaticamente quando o cliente enviar uma
+                        frase específica (ex.: texto pré-preenchido de um
+                        anúncio)
                       </p>
                     </div>
                     {!showRuleForm && (
@@ -929,7 +945,10 @@ export default function DisparoRecepcaoPage() {
                           type="text"
                           value={ruleForm.keyword}
                           onChange={(e) =>
-                            setRuleForm((p) => ({ ...p, keyword: e.target.value }))
+                            setRuleForm((p) => ({
+                              ...p,
+                              keyword: e.target.value,
+                            }))
                           }
                           placeholder="Ex.: Quero saber mais sobre o produto X"
                           className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all"
@@ -942,7 +961,9 @@ export default function DisparoRecepcaoPage() {
                           Modo de comparação
                         </label>
                         <div className="grid grid-cols-3 gap-2">
-                          {(["exact", "contains", "starts_with"] as MatchMode[]).map((m) => (
+                          {(
+                            ["exact", "contains", "starts_with"] as MatchMode[]
+                          ).map((m) => (
                             <button
                               key={m}
                               type="button"
@@ -961,9 +982,12 @@ export default function DisparoRecepcaoPage() {
                           ))}
                         </div>
                         <p className="text-[11px] text-muted-foreground">
-                          {ruleForm.match_mode === "exact" && "A mensagem deve ser exatamente igual à frase."}
-                          {ruleForm.match_mode === "contains" && "A mensagem deve conter a frase em qualquer posição."}
-                          {ruleForm.match_mode === "starts_with" && "A mensagem deve começar com a frase."}
+                          {ruleForm.match_mode === "exact" &&
+                            "A mensagem deve ser exatamente igual à frase."}
+                          {ruleForm.match_mode === "contains" &&
+                            "A mensagem deve conter a frase em qualquer posição."}
+                          {ruleForm.match_mode === "starts_with" &&
+                            "A mensagem deve começar com a frase."}
                         </p>
                       </div>
 
@@ -973,28 +997,38 @@ export default function DisparoRecepcaoPage() {
                           Tipo de resposta
                         </label>
                         <div className="grid grid-cols-3 gap-2">
-                          {(["text", "audio", "both"] as ResponseType[]).map((rt) => (
-                            <button
-                              key={rt}
-                              type="button"
-                              onClick={() =>
-                                setRuleForm((p) => ({ ...p, response_type: rt }))
-                              }
-                              className={cn(
-                                "py-1.5 rounded-lg text-xs font-medium transition-colors border",
-                                ruleForm.response_type === rt
-                                  ? "bg-primary text-primary-foreground border-primary"
-                                  : "bg-muted/50 text-muted-foreground border-border hover:bg-muted",
-                              )}
-                            >
-                              {rt === "text" ? "Texto" : rt === "audio" ? "Áudio" : "Texto + Áudio"}
-                            </button>
-                          ))}
+                          {(["text", "audio", "both"] as ResponseType[]).map(
+                            (rt) => (
+                              <button
+                                key={rt}
+                                type="button"
+                                onClick={() =>
+                                  setRuleForm((p) => ({
+                                    ...p,
+                                    response_type: rt,
+                                  }))
+                                }
+                                className={cn(
+                                  "py-1.5 rounded-lg text-xs font-medium transition-colors border",
+                                  ruleForm.response_type === rt
+                                    ? "bg-primary text-primary-foreground border-primary"
+                                    : "bg-muted/50 text-muted-foreground border-border hover:bg-muted",
+                                )}
+                              >
+                                {rt === "text"
+                                  ? "Texto"
+                                  : rt === "audio"
+                                    ? "Áudio"
+                                    : "Texto + Áudio"}
+                              </button>
+                            ),
+                          )}
                         </div>
                       </div>
 
                       {/* Text message */}
-                      {(ruleForm.response_type === "text" || ruleForm.response_type === "both") && (
+                      {(ruleForm.response_type === "text" ||
+                        ruleForm.response_type === "both") && (
                         <div className="space-y-1.5">
                           <label className="text-xs font-medium text-foreground">
                             Mensagem de resposta
@@ -1002,7 +1036,10 @@ export default function DisparoRecepcaoPage() {
                           <textarea
                             value={ruleForm.welcome_message}
                             onChange={(e) =>
-                              setRuleForm((p) => ({ ...p, welcome_message: e.target.value }))
+                              setRuleForm((p) => ({
+                                ...p,
+                                welcome_message: e.target.value,
+                              }))
                             }
                             placeholder="Digite a mensagem automática para este anúncio..."
                             rows={3}
@@ -1010,16 +1047,23 @@ export default function DisparoRecepcaoPage() {
                           />
                           <p className="text-[11px] text-muted-foreground">
                             Variáveis:{" "}
-                            <code className="bg-muted px-1 py-0.5 rounded text-primary">{"{{nome}}"}</code>{" "}
-                            <code className="bg-muted px-1 py-0.5 rounded text-primary">{"{{numero}}"}</code>
+                            <code className="bg-muted px-1 py-0.5 rounded text-primary">
+                              {"{{nome}}"}
+                            </code>{" "}
+                            <code className="bg-muted px-1 py-0.5 rounded text-primary">
+                              {"{{numero}}"}
+                            </code>
                           </p>
                         </div>
                       )}
 
                       {/* Audio */}
-                      {(ruleForm.response_type === "audio" || ruleForm.response_type === "both") && (
+                      {(ruleForm.response_type === "audio" ||
+                        ruleForm.response_type === "both") && (
                         <div className="space-y-1.5">
-                          <label className="text-xs font-medium text-foreground">Áudio de resposta</label>
+                          <label className="text-xs font-medium text-foreground">
+                            Áudio de resposta
+                          </label>
                           {ruleForm.audio_base64 && ruleForm.audio_mimetype ? (
                             <div className="rounded-lg border border-border bg-background flex items-center gap-1 px-2">
                               <div className="flex-1 min-w-0">
@@ -1058,7 +1102,11 @@ export default function DisparoRecepcaoPage() {
                                         : "text-muted-foreground hover:text-foreground",
                                     )}
                                   >
-                                    {t === "upload" ? <Upload className="w-3.5 h-3.5" /> : <Library className="w-3.5 h-3.5" />}
+                                    {t === "upload" ? (
+                                      <Upload className="w-3.5 h-3.5" />
+                                    ) : (
+                                      <Library className="w-3.5 h-3.5" />
+                                    )}
                                     {t === "upload" ? "Arquivo" : "Salvos"}
                                   </button>
                                 ))}
@@ -1074,7 +1122,9 @@ export default function DisparoRecepcaoPage() {
                                   />
                                   <button
                                     type="button"
-                                    onClick={() => ruleFileInputRef.current?.click()}
+                                    onClick={() =>
+                                      ruleFileInputRef.current?.click()
+                                    }
                                     className="w-full flex items-center gap-2 py-3 border-2 border-dashed border-border rounded-lg hover:border-primary/30 hover:bg-primary/5 transition-all justify-center"
                                   >
                                     <Upload className="w-4 h-4 text-muted-foreground" />
@@ -1087,7 +1137,9 @@ export default function DisparoRecepcaoPage() {
                               {ruleAudioTab === "saved" && (
                                 <div className="max-h-36 overflow-y-auto space-y-1 border border-border rounded-lg p-1.5">
                                   {savedAudios.length === 0 ? (
-                                    <p className="text-xs text-muted-foreground text-center py-3">Nenhum áudio salvo</p>
+                                    <p className="text-xs text-muted-foreground text-center py-3">
+                                      Nenhum áudio salvo
+                                    </p>
                                   ) : (
                                     savedAudios.map((a) => (
                                       <button
@@ -1097,7 +1149,9 @@ export default function DisparoRecepcaoPage() {
                                         onClick={async () => {
                                           setLoadingSavedId(a.id);
                                           try {
-                                            const full = await getSavedAudio(a.id);
+                                            const full = await getSavedAudio(
+                                              a.id,
+                                            );
                                             setRuleForm((p) => ({
                                               ...p,
                                               audio_base64: full.audio_base64,
@@ -1105,7 +1159,9 @@ export default function DisparoRecepcaoPage() {
                                               audio_filename: `${a.title}.webm`,
                                             }));
                                           } catch {
-                                            toast.error("Erro ao carregar áudio");
+                                            toast.error(
+                                              "Erro ao carregar áudio",
+                                            );
                                           } finally {
                                             setLoadingSavedId(null);
                                           }
@@ -1117,9 +1173,13 @@ export default function DisparoRecepcaoPage() {
                                         ) : (
                                           <Play className="w-3.5 h-3.5 text-primary shrink-0" />
                                         )}
-                                        <span className="text-xs text-foreground truncate flex-1">{a.title}</span>
+                                        <span className="text-xs text-foreground truncate flex-1">
+                                          {a.title}
+                                        </span>
                                         {a.duration && (
-                                          <span className="text-[10px] text-muted-foreground tabular-nums">{a.duration}</span>
+                                          <span className="text-[10px] text-muted-foreground tabular-nums">
+                                            {a.duration}
+                                          </span>
                                         )}
                                       </button>
                                     ))
@@ -1133,10 +1193,14 @@ export default function DisparoRecepcaoPage() {
 
                       {/* Active toggle */}
                       <div className="flex items-center justify-between">
-                        <label className="text-xs font-medium text-foreground">Regra ativa</label>
+                        <label className="text-xs font-medium text-foreground">
+                          Regra ativa
+                        </label>
                         <button
                           type="button"
-                          onClick={() => setRuleForm((p) => ({ ...p, active: !p.active }))}
+                          onClick={() =>
+                            setRuleForm((p) => ({ ...p, active: !p.active }))
+                          }
                           className={cn(
                             "flex items-center gap-2 text-xs font-medium px-4 py-1.5 rounded-full transition-colors",
                             ruleForm.active
@@ -1187,7 +1251,8 @@ export default function DisparoRecepcaoPage() {
                         Nenhuma regra configurada ainda.
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Crie regras para responder automaticamente a clientes que chegam por anúncios específicos.
+                        Crie regras para responder automaticamente a clientes
+                        que chegam por anúncios específicos.
                       </p>
                     </div>
                   ) : (
@@ -1210,7 +1275,11 @@ export default function DisparoRecepcaoPage() {
                                 {matchModeLabels[rule.match_mode as MatchMode]}
                               </span>
                               <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded-full">
-                                {rule.response_type === "text" ? "Texto" : rule.response_type === "audio" ? "Áudio" : "Texto + Áudio"}
+                                {rule.response_type === "text"
+                                  ? "Texto"
+                                  : rule.response_type === "audio"
+                                    ? "Áudio"
+                                    : "Texto + Áudio"}
                               </span>
                               {!rule.active && (
                                 <span className="text-[10px] bg-destructive/10 text-destructive px-2 py-0.5 rounded-full">
