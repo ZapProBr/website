@@ -1,7 +1,7 @@
 "use client";
 
 import { AppLayout } from "@/components/AppLayout";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -28,6 +28,9 @@ import {
   User,
   MessageCircle,
   MapPin,
+  Download,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 import { setTagStore } from "@/lib/tagStore";
@@ -172,11 +175,56 @@ export default function ConversasPage() {
   const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [showClientPanel, setShowClientPanel] = useState(false);
-  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+
+  // --- Media gallery lightbox (WhatsApp-style) ---
+  const mediaMessages = useMemo(() =>
+    chatMessages
+      .filter((m) => m.has_media && m.media_mimetype && (m.media_mimetype.startsWith("image/") || m.media_mimetype.startsWith("video/")))
+      .map((m) => ({ id: m.id, mimetype: m.media_mimetype!, createdAt: m.created_at, sent: m.sent })),
+    [chatMessages],
+  );
+  const [lbMediaIndex, setLbMediaIndex] = useState<number | null>(null);
   const [lbZoom, setLbZoom] = useState(1);
   const [lbPan, setLbPan] = useState({ x: 0, y: 0 });
   const lbDragging = useRef(false);
   const lbImgRef = useRef<HTMLImageElement>(null);
+  const lbThumbsRef = useRef<HTMLDivElement>(null);
+
+  const lbCurrent = lbMediaIndex !== null ? mediaMessages[lbMediaIndex] : null;
+  const lbIsVideo = lbCurrent?.mimetype.startsWith("video/") ?? false;
+  const lbMediaUrl = lbCurrent && selected ? getMediaUrl(selected, lbCurrent.id) : "";
+
+  const openLightbox = useCallback((msgId: string) => {
+    const idx = mediaMessages.findIndex((m) => m.id === msgId);
+    if (idx !== -1) setLbMediaIndex(idx);
+  }, [mediaMessages]);
+
+  const closeLightbox = useCallback(() => setLbMediaIndex(null), []);
+
+  const lbNav = useCallback((dir: -1 | 1) => {
+    setLbMediaIndex((i) => {
+      if (i === null) return null;
+      const next = i + dir;
+      if (next < 0 || next >= mediaMessages.length) return i;
+      return next;
+    });
+  }, [mediaMessages.length]);
+
+  const lbDownload = useCallback(async () => {
+    if (!lbMediaUrl) return;
+    try {
+      const res = await fetch(lbMediaUrl);
+      const blob = await res.blob();
+      const ext = lbCurrent?.mimetype.split("/")[1]?.split(";")[0] || "bin";
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `media-${lbCurrent?.id?.slice(0, 8)}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    } catch { toast.error("Erro ao baixar mídia"); }
+  }, [lbMediaUrl, lbCurrent]);
 
   // Clamp pan so image edges never go beyond viewport edges (WhatsApp-style)
   const clampPan = (pan: { x: number; y: number }, zoom: number) => {
@@ -205,21 +253,30 @@ export default function ConversasPage() {
     };
   };
 
-  // Reset zoom/pan when lightbox opens
+  // Reset zoom/pan when current media changes
   useEffect(() => {
-    if (lightboxImage) { setLbZoom(1); setLbPan({ x: 0, y: 0 }); }
-  }, [lightboxImage]);
+    if (lbMediaIndex !== null) { setLbZoom(1); setLbPan({ x: 0, y: 0 }); }
+  }, [lbMediaIndex]);
 
-  // Ctrl+scroll and Ctrl+/- zoom, Escape to close
+  // Auto-scroll thumbnail strip to active item
   useEffect(() => {
-    if (!lightboxImage) return;
+    if (lbMediaIndex === null || !lbThumbsRef.current) return;
+    const active = lbThumbsRef.current.querySelector("[data-active=\"true\"]") as HTMLElement | null;
+    if (active) active.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  }, [lbMediaIndex]);
+
+  // Keyboard & wheel handlers
+  useEffect(() => {
+    if (lbMediaIndex === null) return;
     const handleWheel = (e: WheelEvent) => {
       if (!e.ctrlKey) return;
       e.preventDefault();
       setLbZoom((z) => Math.min(10, Math.max(1, z - e.deltaY * 0.002)));
     };
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { setLightboxImage(null); return; }
+      if (e.key === "Escape") { closeLightbox(); return; }
+      if (e.key === "ArrowLeft") { lbNav(-1); return; }
+      if (e.key === "ArrowRight") { lbNav(1); return; }
       if (e.ctrlKey && (e.key === "=" || e.key === "+")) { e.preventDefault(); setLbZoom((z) => Math.min(10, z * 1.2)); }
       if (e.ctrlKey && e.key === "-") { e.preventDefault(); setLbZoom((z) => Math.max(1, z / 1.2)); }
       if (e.ctrlKey && e.key === "0") { e.preventDefault(); setLbZoom(1); setLbPan({ x: 0, y: 0 }); }
@@ -227,13 +284,13 @@ export default function ConversasPage() {
     window.addEventListener("wheel", handleWheel, { passive: false });
     window.addEventListener("keydown", handleKey);
     return () => { window.removeEventListener("wheel", handleWheel); window.removeEventListener("keydown", handleKey); };
-  }, [lightboxImage]);
+  }, [lbMediaIndex, closeLightbox, lbNav]);
 
-  // Re-clamp pan whenever zoom changes so edges stay within viewport
+  // Re-clamp pan whenever zoom changes
   useEffect(() => {
-    if (!lightboxImage) return;
+    if (lbMediaIndex === null) return;
     setLbPan((p) => clampPan(p, lbZoom));
-  }, [lbZoom, lightboxImage]);
+  }, [lbZoom, lbMediaIndex]);
 
   // Advanced filters
   const [showAdvFilters, setShowAdvFilters] = useState(false);
@@ -1665,9 +1722,7 @@ export default function ConversasPage() {
                                       scrollToBottom();
                                   }}
                                   onClick={() =>
-                                    setLightboxImage(
-                                      getMediaUrl(selected, msg.id),
-                                    )
+                                    openLightbox(msg.id)
                                   }
                                 />
                               )}
@@ -1678,16 +1733,23 @@ export default function ConversasPage() {
                                 />
                               )}
                               {msg.media_mimetype.startsWith("video/") && (
-                                <video
-                                  controls
-                                  className="w-full max-h-80"
-                                  preload="none"
+                                <div
+                                  className="relative cursor-pointer group"
+                                  onClick={() => openLightbox(msg.id)}
                                 >
-                                  <source
-                                    src={getMediaUrl(selected, msg.id)}
-                                    type={msg.media_mimetype}
-                                  />
-                                </video>
+                                  <video
+                                    className="w-full max-h-80"
+                                    preload="metadata"
+                                  >
+                                    <source
+                                      src={getMediaUrl(selected, msg.id)}
+                                      type={msg.media_mimetype}
+                                    />
+                                  </video>
+                                  <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors">
+                                    <Play className="w-12 h-12 text-white fill-white" />
+                                  </div>
+                                </div>
                               )}
                               {!msg.media_mimetype.startsWith("image/") &&
                                 !msg.media_mimetype.startsWith("audio/") &&
@@ -2367,58 +2429,144 @@ export default function ConversasPage() {
         </DialogContent>
       </Dialog>
 
-      {/* WhatsApp-style image lightbox with zoom/pan */}
-      {lightboxImage && (
-        <div className="fixed inset-0 z-[100] select-none">
-          {/* Layer 1: Backdrop — always closes on click */}
-          <div
-            className="absolute inset-0 bg-black/90"
-            onClick={() => setLightboxImage(null)}
-          />
-
-          {/* Layer 2: Top bar — always visible above image */}
-          <div className="absolute top-0 left-0 right-0 h-14 flex items-center justify-between px-4 z-20">
-            {lbZoom !== 1 ? (
-              <span className="px-3 py-1 rounded-full bg-white/10 text-white text-xs font-medium">
-                {Math.round(lbZoom * 100)}%
-              </span>
-            ) : <span />}
-            <button
-              onClick={() => setLightboxImage(null)}
-              className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-            >
-              <X className="w-6 h-6" />
-            </button>
+      {/* WhatsApp-style media gallery lightbox */}
+      {lbMediaIndex !== null && lbCurrent && selected && (
+        <div className="fixed inset-0 z-[100] select-none bg-[#111]">
+          {/* Layer 1: Top bar — contact info + actions */}
+          <div className="absolute top-0 left-0 right-0 h-14 flex items-center justify-between px-4 z-30 bg-[#1f1f1f]">
+            {/* Left: avatar + name + time */}
+            <div className="flex items-center gap-3 min-w-0">
+              {selectedConv?.contact_photo ? (
+                <img src={selectedConv.contact_photo} alt="" className="w-9 h-9 rounded-full object-cover ring-2 ring-[hsl(205,85%,52%)]" />
+              ) : (
+                <div className="w-9 h-9 rounded-full bg-[hsl(205,85%,52%)] flex items-center justify-center text-white text-xs font-bold">
+                  {selectedConv ? getInitials(selectedConv.contact_name) : "?"}
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="text-white text-sm font-medium truncate">{selectedConv?.contact_name ?? "Contato"}</p>
+                <p className="text-white/50 text-xs">{formatTime(lbCurrent.createdAt)}</p>
+              </div>
+            </div>
+            {/* Right: actions */}
+            <div className="flex items-center gap-1">
+              {lbZoom !== 1 && (
+                <span className="px-2 py-0.5 rounded text-white/60 text-xs font-medium mr-2">
+                  {Math.round(lbZoom * 100)}%
+                </span>
+              )}
+              <button
+                onClick={lbDownload}
+                className="p-2 rounded-full hover:bg-white/10 text-white/70 hover:text-white transition-colors"
+                title="Download"
+              >
+                <Download className="w-5 h-5" />
+              </button>
+              <button
+                onClick={closeLightbox}
+                className="p-2 rounded-full hover:bg-white/10 text-white/70 hover:text-white transition-colors"
+                title="Fechar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
-          {/* Layer 3: Image container — overflow-hidden clips zoomed content */}
+          {/* Layer 2: Navigation arrows */}
+          {lbMediaIndex > 0 && (
+            <button
+              onClick={() => lbNav(-1)}
+              className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 flex items-center justify-center text-white transition-colors"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+          )}
+          {lbMediaIndex < mediaMessages.length - 1 && (
+            <button
+              onClick={() => lbNav(1)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 flex items-center justify-center text-white transition-colors"
+            >
+              <ChevronRight className="w-6 h-6" />
+            </button>
+          )}
+
+          {/* Layer 3: Media container */}
           <div
-            className="absolute inset-0 flex items-center justify-center overflow-hidden"
-            style={{ cursor: lbZoom > 1 ? (lbDragging.current ? "grabbing" : "grab") : "default" }}
+            className="absolute inset-0 pt-14 pb-24 flex items-center justify-center overflow-hidden"
+            style={{ cursor: !lbIsVideo && lbZoom > 1 ? (lbDragging.current ? "grabbing" : "grab") : "default" }}
             onMouseMove={(e) => {
-              if (!lbDragging.current) return;
+              if (!lbDragging.current || lbIsVideo) return;
               setLbPan((p) => clampPan({ x: p.x + e.movementX, y: p.y + e.movementY }, lbZoom));
             }}
             onMouseUp={() => { lbDragging.current = false; }}
             onMouseLeave={() => { lbDragging.current = false; }}
           >
-            <img
-              ref={lbImgRef}
-              src={lightboxImage}
-              alt="Preview"
-              className="w-full h-full object-contain"
-              draggable={false}
-              style={{
-                transform: `translate(${lbPan.x}px, ${lbPan.y}px) scale(${lbZoom})`,
-                transition: lbDragging.current ? "none" : "transform 0.15s ease-out",
-              }}
-              onDoubleClick={() => {
-                if (lbZoom === 1) { setLbZoom(2.5); } else { setLbZoom(1); setLbPan({ x: 0, y: 0 }); }
-              }}
-              onMouseDown={(e) => {
-                if (lbZoom > 1) { e.preventDefault(); lbDragging.current = true; }
-              }}
-            />
+            {lbIsVideo ? (
+              <video
+                key={lbCurrent.id}
+                controls
+                autoPlay
+                className="max-w-full max-h-full object-contain"
+              >
+                <source src={lbMediaUrl} type={lbCurrent.mimetype} />
+              </video>
+            ) : (
+              <img
+                key={lbCurrent.id}
+                ref={lbImgRef}
+                src={lbMediaUrl}
+                alt="Preview"
+                className="w-full h-full object-contain"
+                draggable={false}
+                style={{
+                  transform: `translate(${lbPan.x}px, ${lbPan.y}px) scale(${lbZoom})`,
+                  transition: lbDragging.current ? "none" : "transform 0.15s ease-out",
+                }}
+                onDoubleClick={() => {
+                  if (lbZoom === 1) { setLbZoom(2.5); } else { setLbZoom(1); setLbPan({ x: 0, y: 0 }); }
+                }}
+                onMouseDown={(e) => {
+                  if (lbZoom > 1) { e.preventDefault(); lbDragging.current = true; }
+                }}
+              />
+            )}
+          </div>
+
+          {/* Layer 4: Thumbnail strip */}
+          <div className="absolute bottom-0 left-0 right-0 h-24 z-30 bg-[#1f1f1f] flex items-center">
+            <div
+              ref={lbThumbsRef}
+              className="flex gap-1 px-3 overflow-x-auto scrollbar-none w-full"
+              style={{ scrollbarWidth: "none" }}
+            >
+              {mediaMessages.map((m, i) => {
+                const isActive = i === lbMediaIndex;
+                const thumbUrl = selected ? getMediaUrl(selected, m.id) : "";
+                const isVid = m.mimetype.startsWith("video/");
+                return (
+                  <button
+                    key={m.id}
+                    data-active={isActive}
+                    onClick={() => setLbMediaIndex(i)}
+                    className={cn(
+                      "flex-shrink-0 w-16 h-16 rounded overflow-hidden relative transition-all",
+                      isActive ? "ring-2 ring-[hsl(205,85%,52%)] opacity-100" : "opacity-50 hover:opacity-80",
+                    )}
+                  >
+                    {isVid ? (
+                      <>
+                        <video src={thumbUrl} className="w-full h-full object-cover" preload="metadata" muted />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                          <Play className="w-4 h-4 text-white fill-white" />
+                        </div>
+                      </>
+                    ) : (
+                      <img src={thumbUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
